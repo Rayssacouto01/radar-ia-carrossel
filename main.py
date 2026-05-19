@@ -9,7 +9,7 @@ import anthropic
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MAX_NEWS = int(os.getenv("MAX_NEWS", "5"))
+MAX_NEWS = int(os.getenv("MAX_NEWS", "1"))
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -26,7 +26,6 @@ def run():
 
     from src.scraper import fetch_all_news
     from src.classifier import classify_and_generate
-    from src.carousel_generator import generate_carousel
     from src.report_saver import save_report
 
     print("[main] Buscando novidades de IA...")
@@ -44,16 +43,8 @@ def run():
     contents = classify_and_generate(news_items, client)
     print(f"[main] {len(contents)} itens processados.")
 
-    print("[main] Gerando carrosséis...")
-    contents_with_paths: list[tuple] = []
-    for content in contents:
-        paths = []
-        if content.format == "carrossel":
-            paths = generate_carousel(content, str(OUTPUT_DIR))
-        contents_with_paths.append((content, paths))
-
     print("[main] Salvando relatório...")
-    report_path = save_report(contents_with_paths, str(OUTPUT_DIR))
+    report_path = save_report(contents, str(OUTPUT_DIR))
 
     if report_path:
         print(f"[main] ✅ Relatório pronto: {report_path}")
