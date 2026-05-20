@@ -1,8 +1,13 @@
 """Gera slides de carrossel usando o template real da Rayssa como base."""
 
+import re
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from .classifier import GeneratedContent
+
+
+def _strip_emoji(text: str) -> str:
+    return re.sub(r'[\U00010000-\U0010FFFF]', '', text, flags=re.UNICODE).strip()
 
 # ── Caminhos ───────────────────────────────────────────────────────────────
 ASSETS_DIR = Path(__file__).parent.parent / "assets"
@@ -119,7 +124,7 @@ def _draw_dots(draw: ImageDraw.Draw, slide_num: int, total: int):
 
 # ── Conteúdo por tipo de slide ─────────────────────────────────────────────
 def _render_capa(draw: ImageDraw.Draw, slide: dict):
-    emoji  = slide.get("emoji", "")
+    emoji  = _strip_emoji(slide.get("emoji", ""))
     titulo = slide.get("titulo", "")
     sub    = slide.get("subtitulo", "")
 
@@ -144,7 +149,7 @@ def _render_capa(draw: ImageDraw.Draw, slide: dict):
 
 
 def _render_content(draw: ImageDraw.Draw, slide: dict):
-    emoji  = slide.get("emoji", "")
+    emoji  = _strip_emoji(slide.get("emoji", ""))
     titulo = slide.get("titulo", "")
     corpo  = slide.get("corpo", "")
 
@@ -172,7 +177,7 @@ def _render_content(draw: ImageDraw.Draw, slide: dict):
 
 
 def _render_aplicacao(draw: ImageDraw.Draw, slide: dict):
-    emoji  = slide.get("emoji", "💰")
+    emoji  = _strip_emoji(slide.get("emoji", ""))
     titulo = slide.get("titulo", "Como usar no seu negócio")
     corpo  = slide.get("corpo", "")
 
@@ -205,7 +210,7 @@ def _render_aplicacao(draw: ImageDraw.Draw, slide: dict):
 
 
 def _render_cta(draw: ImageDraw.Draw, slide: dict):
-    emoji  = slide.get("emoji", "📌")
+    emoji  = _strip_emoji(slide.get("emoji", ""))
     titulo = slide.get("titulo", "Salva esse carrossel!")
     sub    = slide.get("subtitulo", "")
 
