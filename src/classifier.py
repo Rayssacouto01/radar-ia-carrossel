@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Optional
 from .scraper import NewsItem
 
-ContentType = Literal["reels", "carrossel", "post_estatico"]
+ContentType = Literal["reels", "carrossel"]
 
 SYSTEM_PROMPT = """Você é um professor especialista em Inteligência Artificial que ensina empreendedores e donos de negócio brasileiros a usar IA no dia a dia das suas empresas.
 
@@ -33,10 +33,6 @@ Seu estilo é de professor paciente e didático:
 - É ideal para salvar e consultar depois
 - Requer mais contexto para ser bem aproveitada
 
-**POST_ESTATICO** → Escolha quando a novidade:
-- É uma estatística ou dado impactante e isolado
-- É uma citação/declaração marcante de um líder de IA
-- É uma notícia simples mas relevante que não precisa de mais explicação
 
 ## Público-alvo:
 Donos de negócio e empreendedores brasileiros — podem ser de qualquer setor. Muitos nunca usaram IA antes. Seu papel é mostrar que é simples, acessível e já está transformando empresas como a deles.
@@ -90,7 +86,7 @@ diferentes (clínica, loja, restaurante, agência, escritório...).
 Responda APENAS com um JSON válido seguindo exatamente este schema:
 
 {{
-  "format": "reels" | "carrossel" | "post_estatico",
+  "format": "reels" | "carrossel",
   "hook": "pergunta ou frase de impacto que faça o dono de negócio parar o scroll (máx 15 palavras)",
   "business_application": "Explique como donos de negócio podem usar isso HOJE. Tom de professor. Cite 2 exemplos de setores diferentes com frases como 'Uma clínica pode...' e 'Uma loja de roupas consegue...'. Máx 3 frases.",
 
@@ -119,9 +115,6 @@ Responda APENAS com um JSON válido seguindo exatamente este schema:
   ],
   "legenda_carrossel": "caption educativa com emojis — começe com uma pergunta para o leitor, explique o benefício, CTA para salvar e comentar",
 
-  // Se format == "post_estatico":
-  "static_caption": "caption educativa: explique a notícia de forma simples, dê 1 exemplo prático para empresas, CTA para comentar. Use emojis e hashtags.",
-  "static_image_concept": "descreva o visual ideal para este post estático (cores, texto em destaque, elementos visuais) — para replicar no Canva"
 }}"""
 
     try:
@@ -148,7 +141,7 @@ Responda APENAS com um JSON válido seguindo exatamente este schema:
         raw = raw.strip().rstrip("```").strip()
 
         data = json.loads(raw)
-        fmt: ContentType = data.get("format", "post_estatico")
+        fmt: ContentType = data.get("format", "carrossel")
 
         result = GeneratedContent(
             news=item,
@@ -163,10 +156,6 @@ Responda APENAS com um JSON válido seguindo exatamente este schema:
         elif fmt == "carrossel":
             result.carousel_slides = data.get("carousel_slides", [])
             result.static_caption = data.get("legenda_carrossel", "")
-        elif fmt == "post_estatico":
-            result.static_caption = data.get("static_caption", "")
-            result.static_image_concept = data.get("static_image_concept", "")
-
         return result
 
     except json.JSONDecodeError as e:
