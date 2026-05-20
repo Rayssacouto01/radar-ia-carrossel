@@ -8,9 +8,12 @@ import anthropic
 
 load_dotenv()
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MAX_NEWS = int(os.getenv("MAX_NEWS", "1"))
-GOOGLE_SA_JSON = os.getenv("GOOGLE_SA_JSON", "")  # conteúdo do JSON da service account
+ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
+MAX_NEWS           = int(os.getenv("MAX_NEWS", "1"))
+EVOLUTION_URL      = os.getenv("EVOLUTION_URL", "")
+EVOLUTION_API_KEY  = os.getenv("EVOLUTION_API_KEY", "")
+EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "")
+WHATSAPP_NUMBER    = os.getenv("WHATSAPP_NUMBER", "")
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -18,7 +21,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 def validate_env():
     if not ANTHROPIC_API_KEY:
-        print("[main] ERRO: ANTHROPIC_API_KEY ausente. Copie .env.example para .env e preencha.")
+        print("[main] ERRO: ANTHROPIC_API_KEY ausente.")
         sys.exit(1)
 
 
@@ -29,7 +32,7 @@ def run():
     from src.classifier import classify_and_generate
     from src.carousel_generator import generate_carousel
     from src.report_saver import save_report
-    from src.drive_uploader import upload_report
+    from src.whatsapp_sender import send_report
 
     print("[main] Buscando novidades de IA...")
     news_items = fetch_all_news(hours_back=48, max_per_source=2)
@@ -56,7 +59,7 @@ def run():
         paths = generate_carousel(c, str(OUTPUT_DIR)) if c.format == "carrossel" else []
         contents_with_paths.append((c, paths))
 
-    print("[main] Salvando relatório...")
+    print("[main] Salvando relatório HTML...")
     report_path = save_report(contents_with_paths, str(OUTPUT_DIR))
 
     if not report_path:
@@ -65,13 +68,22 @@ def run():
 
     print(f"[main] ✅ Relatório salvo: {report_path}")
 
-    print("[main] Fazendo upload para o Google Drive...")
-    drive_link = upload_report(report_path, GOOGLE_SA_JSON)
-
-    if drive_link:
-        print(f"[main] ✅ Disponível no Drive: {drive_link}")
+    if EVOLUTION_URL and EVOLUTION_API_KEY and EVOLUTION_INSTANCE and WHATSAPP_NUMBER:
+        print("[main] Enviando para WhatsApp via Evolution API...")
+        ok = send_report(
+            contents_with_paths,
+            report_path,
+            EVOLUTION_URL,
+            EVOLUTION_API_KEY,
+            EVOLUTION_INSTANCE,
+            WHATSAPP_NUMBER,
+        )
+        if ok:
+            print(f"[main] ✅ Enviado para WhatsApp: {WHATSAPP_NUMBER}")
+        else:
+            print("[main] ⚠️  Falha no envio WhatsApp. Relatório local disponível.")
     else:
-        print("[main] ⚠️  Upload para Drive não realizado (GOOGLE_SA_JSON não configurado ou erro).")
+        print("[main] ⚠️  Variáveis da Evolution API não configuradas — envio WhatsApp pulado.")
         print(f"[main] 📁 Arquivo local: {report_path}")
 
 
