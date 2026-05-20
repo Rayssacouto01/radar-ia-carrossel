@@ -84,7 +84,8 @@ def _send_text(text: str, base_url: str, api_key: str, instance: str, number: st
     return False
 
 
-def _send_document(file_path: str, base_url: str, api_key: str, instance: str, number: str) -> bool:
+def _send_media(file_path: str, mediatype: str, mimetype: str, caption: str,
+                base_url: str, api_key: str, instance: str, number: str) -> bool:
     path = Path(file_path)
     with open(file_path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
@@ -92,18 +93,18 @@ def _send_document(file_path: str, base_url: str, api_key: str, instance: str, n
     url = f"{base_url.rstrip('/')}/message/sendMedia/{instance}"
     payload = {
         "number": number,
-        "mediatype": "document",
-        "mimetype": "text/html",
+        "mediatype": mediatype,
+        "mimetype": mimetype,
         "fileName": path.name,
         "media": b64,
-        "caption": f"📄 Relatório completo — {path.name}",
+        "caption": caption,
     }
     headers = {"apikey": api_key, "Content-Type": "application/json"}
     resp = requests.post(url, json=payload, headers=headers, timeout=60)
     if resp.status_code in (200, 201):
-        print(f"[whatsapp] Documento enviado: {path.name}")
+        print(f"[whatsapp] {mediatype} enviado: {path.name}")
         return True
-    print(f"[whatsapp] Erro ao enviar documento: {resp.status_code} — {resp.text[:200]}")
+    print(f"[whatsapp] Erro ao enviar {mediatype}: {resp.status_code} — {resp.text[:200]}")
     return False
 
 
@@ -115,18 +116,31 @@ def send_report(
     instance: str,
     number: str,
 ) -> bool:
-    """Envia resumo em texto + arquivo HTML para o WhatsApp."""
+    """Envia resumo em texto + slides PNG + arquivo HTML para o WhatsApp."""
     if not contents_with_paths:
         return False
 
     ok = True
-    for content, _ in contents_with_paths:
+    for content, slide_paths in contents_with_paths:
+        # 1. Resumo em texto
         msg = _build_message(content)
         if not _send_text(msg, base_url, api_key, instance, number):
             ok = False
 
+        # 2. Slides PNG (carrossel)
+        for i, png_path in enumerate(slide_paths, 1):
+            if not Path(png_path).exists():
+                continue
+            caption = f"Slide {i}/{len(slide_paths)}"
+            if not _send_media(png_path, "image", "image/png", caption,
+                               base_url, api_key, instance, number):
+                ok = False
+
+    # 3. Relatório HTML como documento
     if report_path and Path(report_path).exists():
-        if not _send_document(report_path, base_url, api_key, instance, number):
+        if not _send_media(report_path, "document", "text/html",
+                           f"📄 Relatório completo — {Path(report_path).name}",
+                           base_url, api_key, instance, number):
             ok = False
 
     return ok
