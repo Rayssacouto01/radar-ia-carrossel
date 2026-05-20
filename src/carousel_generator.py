@@ -10,56 +10,51 @@ def _strip_emoji(text: str) -> str:
     return re.sub(r'[\U00010000-\U0010FFFF]', '', text, flags=re.UNICODE).strip()
 
 # ── Caminhos ───────────────────────────────────────────────────────────────
-ASSETS_DIR = Path(__file__).parent.parent / "assets"
+ASSETS_DIR    = Path(__file__).parent.parent / "assets"
 TEMPLATE_PATH = ASSETS_DIR / "slide_template.png"
+FONT_REGULAR  = ASSETS_DIR / "fonts" / "Inter-Regular.ttf"
+FONT_BOLD     = ASSETS_DIR / "fonts" / "Inter-Bold.ttf"
 
-# ── Layout do template 1080×1440 ───────────────────────────────────────────
-W, H = 1080, 1440
+# ── Resolução de saída (2× para maior qualidade) ───────────────────────────
+SCALE = 2
 
-# Área de conteúdo (zona central limpa)
-CONTENT_TOP    = 420
-CONTENT_BOTTOM = 1210
-CONTENT_LEFT   = 80
-CONTENT_RIGHT  = 1000
-CONTENT_W      = CONTENT_RIGHT - CONTENT_LEFT   # 920px
+# ── Layout base 1080×1440 escalado ─────────────────────────────────────────
+W, H = 1080 * SCALE, 1440 * SCALE
 
-# Dots de navegação
-DOT_Y        = 1275
-DOT_CX       = 540   # centro horizontal da imagem
-DOT_SPACING  = 40
-DOT_R_ACTIVE = 11
-DOT_R_IDLE   = 7
-DOT_R_LAST   = 5
+CONTENT_TOP    = 420  * SCALE
+CONTENT_BOTTOM = 1210 * SCALE
+CONTENT_LEFT   = 80   * SCALE
+CONTENT_RIGHT  = 1000 * SCALE
+CONTENT_W      = CONTENT_RIGHT - CONTENT_LEFT
+
+DOT_Y        = 1275 * SCALE
+DOT_CX       = 540  * SCALE
+DOT_SPACING  = 40   * SCALE
+DOT_R_ACTIVE = 11   * SCALE
+DOT_R_IDLE   = 7    * SCALE
+DOT_R_LAST   = 5    * SCALE
 COLOR_ACTIVE = (0, 152, 253)
 COLOR_IDLE   = (219, 223, 228)
 
-# Paleta de texto
 TEXT_DARK   = (45,  45,  50)
 TEXT_GRAY   = (110, 110, 120)
-TEXT_ACCENT = (0,   152, 253)   # mesmo azul dos dots
+TEXT_ACCENT = (0,   152, 253)
 
 
 # ── Fontes ─────────────────────────────────────────────────────────────────
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    candidates = (
-        [
-            "/System/Library/Fonts/HelveticaNeue.ttc",
-            "/Library/Fonts/Arial Bold.ttf",
-            "/System/Library/Fonts/SFNSDisplay.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        ]
+    inter = FONT_BOLD if bold else FONT_REGULAR
+    if inter.exists():
+        return ImageFont.truetype(str(inter), size * SCALE)
+    fallbacks = (
+        ["/System/Library/Fonts/HelveticaNeue.ttc", "/Library/Fonts/Arial Bold.ttf"]
         if bold
-        else [
-            "/System/Library/Fonts/Helvetica.ttc",
-            "/Library/Fonts/Arial.ttf",
-            "/System/Library/Fonts/SFNSText.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        ]
+        else ["/System/Library/Fonts/Helvetica.ttc", "/Library/Fonts/Arial.ttf"]
     )
-    for path in candidates:
+    for path in fallbacks:
         if Path(path).exists():
             try:
-                return ImageFont.truetype(path, size)
+                return ImageFont.truetype(path, size * SCALE)
             except Exception:
                 pass
     return ImageFont.load_default()
@@ -254,7 +249,7 @@ def generate_cover(content: GeneratedContent, output_dir: str) -> list[str]:
         print(f"[carousel] Template não encontrado: {TEMPLATE_PATH}")
         return []
 
-    template = Image.open(TEMPLATE_PATH).convert("RGB")
+    template = Image.open(TEMPLATE_PATH).convert("RGB").resize((W, H), Image.LANCZOS)
     img = template.copy()
     draw = ImageDraw.Draw(img)
 
@@ -312,7 +307,7 @@ def generate_carousel(content: GeneratedContent, output_dir: str) -> list[str]:
         print(f"[carousel] Template não encontrado: {TEMPLATE_PATH}")
         return []
 
-    template = Image.open(TEMPLATE_PATH).convert("RGB")
+    template = Image.open(TEMPLATE_PATH).convert("RGB").resize((W, H), Image.LANCZOS)
     slides = content.carousel_slides
     total = len(slides)
 
