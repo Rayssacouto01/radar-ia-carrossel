@@ -65,6 +65,13 @@ SOURCES = [
         "scrape_selector": "a[href*='/blog/']",
         "tag": "gamma",
     },
+    {
+        "name": "xAI (Grok)",
+        "rss": "https://news.google.com/rss/search?q=xAI+Grok+lançamento&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+        "scrape_url": None,
+        "scrape_selector": None,
+        "tag": "grok",
+    },
 ]
 
 HEADERS = {
