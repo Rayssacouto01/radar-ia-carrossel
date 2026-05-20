@@ -6,8 +6,26 @@ from PIL import Image, ImageDraw, ImageFont
 from .classifier import GeneratedContent
 
 
-def _strip_emoji(text: str) -> str:
-    return re.sub(r'[\U00010000-\U0010FFFF]', '', text, flags=re.UNICODE).strip()
+def _clean_text(text: str) -> str:
+    # Remove supplementary plane (emoji, symbols fora do BMP)
+    text = re.sub(r'[\U00010000-\U0010FFFF]', '', text, flags=re.UNICODE)
+    # Substitui pontuação especial por equivalentes ASCII
+    text = (text
+        .replace('—', '-').replace('–', '-')   # em dash, en dash
+        .replace('‒', '-').replace('‑', '-')   # figure/non-breaking hyphen
+        .replace('“', '"').replace('”', '"')   # aspas curvas duplas
+        .replace('‘', "'").replace('’', "'")   # aspas curvas simples
+        .replace('…', '...').replace(' ', ' ') # reticências, espaço fixo
+        .replace('•', '-').replace('·', '-')   # bullet, ponto médio
+        .replace('→', '->').replace('←', '<-') # setas
+    )
+    # Remove símbolos BMP que Inter não tem glyph (Dingbats, Misc Symbols, etc.)
+    text = re.sub(r'[⌀-➿⬀-⯿︀-️]', '', text)
+    return text.strip()
+
+
+# mantém alias para compatibilidade interna
+_strip_emoji = _clean_text
 
 # ── Caminhos ───────────────────────────────────────────────────────────────
 ASSETS_DIR    = Path(__file__).parent.parent / "assets"
@@ -89,7 +107,7 @@ def _draw_text_block(
     align: str = "left",
 ) -> int:
     """Desenha texto com quebra de linha. Retorna o y final."""
-    lines = _wrap(text, font, max_w, draw)
+    lines = _wrap(_clean_text(text), font, max_w, draw)
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         lw = bbox[2] - bbox[0]
