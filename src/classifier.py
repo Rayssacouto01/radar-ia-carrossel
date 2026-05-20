@@ -4,7 +4,7 @@ import os
 import json
 import anthropic
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Optional
 from .scraper import NewsItem
 
 ContentType = Literal["reels", "carrossel", "post_estatico"]
@@ -73,7 +73,7 @@ def classify_and_generate(
     return results
 
 
-def _process_item(item: NewsItem, client: anthropic.Anthropic) -> GeneratedContent | None:
+def _process_item(item: NewsItem, client: anthropic.Anthropic) -> Optional[GeneratedContent]:
     user_message = f"""Você é um professor que vai transformar esta novidade de IA em conteúdo educativo para donos de negócio brasileiros.
 
 **Notícia:**

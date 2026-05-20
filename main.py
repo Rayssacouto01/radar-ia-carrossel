@@ -27,6 +27,7 @@ def run():
 
     from src.scraper import fetch_all_news
     from src.classifier import classify_and_generate
+    from src.carousel_generator import generate_carousel
     from src.report_saver import save_report
     from src.drive_uploader import upload_report
 
@@ -49,8 +50,14 @@ def run():
         print("[main] Nenhum conteúdo gerado. Encerrando.")
         return
 
+    print("[main] Gerando slides de carrossel...")
+    contents_with_paths: list[tuple] = []
+    for c in contents:
+        paths = generate_carousel(c, str(OUTPUT_DIR)) if c.format == "carrossel" else []
+        contents_with_paths.append((c, paths))
+
     print("[main] Salvando relatório...")
-    report_path = save_report(contents, str(OUTPUT_DIR))
+    report_path = save_report(contents_with_paths, str(OUTPUT_DIR))
 
     if not report_path:
         print("[main] ❌ Falha ao salvar relatório.")

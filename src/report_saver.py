@@ -53,7 +53,7 @@ def _slides_html(slides: list[dict]) -> str:
     return "".join(parts)
 
 
-def _card_html(content: GeneratedContent) -> str:
+def _card_html(content: GeneratedContent, carousel_paths: list[str] = None) -> str:
     fmt = content.format
     emoji = FORMAT_EMOJI.get(fmt, "")
     label = FORMAT_LABEL.get(fmt, fmt.upper())
@@ -89,21 +89,49 @@ def _card_html(content: GeneratedContent) -> str:
     elif fmt == "carrossel":
         slides = content.carousel_slides
         caption = content.static_caption
+        paths = carousel_paths or []
 
-        parts.append(f"""
+        # Slides gerados como PNG
+        if paths:
+            import base64
+            slide_imgs = ""
+            for i, p in enumerate(paths):
+                try:
+                    with open(p, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode()
+                    slide_imgs += (
+                        f'<div style="display:inline-block;margin:4px;vertical-align:top;text-align:center;">'
+                        f'<img src="data:image/png;base64,{b64}" '
+                        f'style="width:180px;height:240px;border-radius:8px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,0.12);" '
+                        f'alt="Slide {i+1}"/>'
+                        f'<p style="margin:4px 0 0;font-size:11px;color:#718096;">Slide {i+1}</p>'
+                        f'</div>'
+                    )
+                except Exception:
+                    pass
+
+            parts.append(f"""
+        <div style="margin-top:20px;">
+          <div style="font-size:11px;font-weight:700;color:#718096;text-transform:uppercase;margin-bottom:10px;">
+            Slides gerados ({len(paths)}) — prontos para postar
+          </div>
+          <div style="overflow-x:auto;white-space:nowrap;padding-bottom:8px;">{slide_imgs}</div>
+        </div>"""
+            )
+        else:
+            # Fallback: texto dos slides para copy-paste
+            parts.append(f"""
         <div style="margin-top:20px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px;">
-            <div style="font-size:11px;font-weight:700;color:#718096;text-transform:uppercase;">Slides para o Canva ({len(slides)} slides)</div>
+            <div style="font-size:11px;font-weight:700;color:#718096;text-transform:uppercase;">Slides ({len(slides)})</div>
             <a href="{CANVA_TEMPLATE_URL}" target="_blank"
                style="background:#7B2EE0;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;display:inline-block;">
               🎨 Abrir template no Canva
             </a>
           </div>
-          <p style="margin:0 0 12px;font-size:13px;color:#718096;">
-            Clique em "Abrir template no Canva", depois cole os textos abaixo em cada slide:
-          </p>
           {_slides_html(slides)}
-        </div>""")
+        </div>"""
+            )
 
         if caption:
             parts.append(f"""
@@ -138,12 +166,12 @@ def _card_html(content: GeneratedContent) -> str:
     return "".join(parts)
 
 
-def _build_html(contents: list[GeneratedContent]) -> str:
+def _build_html(contents_with_paths: list[tuple[GeneratedContent, list[str]]]) -> str:
     today = datetime.now().strftime("%d/%m/%Y")
-    reels_count = sum(1 for c in contents if c.format == "reels")
-    carousel_count = sum(1 for c in contents if c.format == "carrossel")
-    static_count = sum(1 for c in contents if c.format == "post_estatico")
-    cards = "".join(_card_html(c) for c in contents)
+    reels_count    = sum(1 for c, _ in contents_with_paths if c.format == "reels")
+    carousel_count = sum(1 for c, _ in contents_with_paths if c.format == "carrossel")
+    static_count   = sum(1 for c, _ in contents_with_paths if c.format == "post_estatico")
+    cards = "".join(_card_html(c, paths) for c, paths in contents_with_paths)
 
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -177,9 +205,12 @@ def _build_html(contents: list[GeneratedContent]) -> str:
 </html>"""
 
 
-def save_report(contents: list[GeneratedContent], output_dir: str) -> str:
+def save_report(
+    contents_with_paths: list[tuple[GeneratedContent, list[str]]],
+    output_dir: str,
+) -> str:
     """Salva o relatório HTML na pasta output/YYYY-MM-DD/. Retorna o caminho do arquivo."""
-    if not contents:
+    if not contents_with_paths:
         print("[report] Nenhum conteúdo para salvar.")
         return ""
 
@@ -187,7 +218,18 @@ def save_report(contents: list[GeneratedContent], output_dir: str) -> str:
     report_dir = Path(output_dir) / date_str
     report_dir.mkdir(parents=True, exist_ok=True)
 
-    html = _build_html(contents)
+    # Copia slides para a pasta do relatório
+    import shutil
+    updated = []
+    for content, paths in contents_with_paths:
+        new_paths = []
+        for src in paths:
+            dst = report_dir / Path(src).name
+            shutil.copy2(src, dst)
+            new_paths.append(str(dst))
+        updated.append((content, new_paths))
+
+    html = _build_html(updated)
     html_path = report_dir / f"radar-ia-{date_str}.html"
     html_path.write_text(html, encoding="utf-8")
 
