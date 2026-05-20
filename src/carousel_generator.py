@@ -236,6 +236,67 @@ RENDERERS = {
 }
 
 
+# ── Capa única (reels / post estático) ────────────────────────────────────
+FORMAT_LABEL = {
+    "reels":        "REELS",
+    "post_estatico": "POST ESTATICO",
+}
+
+
+def generate_cover(content: GeneratedContent, output_dir: str) -> list[str]:
+    """Gera um slide de capa único para reels e post_estatico."""
+    if not TEMPLATE_PATH.exists():
+        print(f"[carousel] Template não encontrado: {TEMPLATE_PATH}")
+        return []
+
+    template = Image.open(TEMPLATE_PATH).convert("RGB")
+    img = template.copy()
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle(
+        [CONTENT_LEFT - 10, CONTENT_TOP, CONTENT_RIGHT + 10, CONTENT_BOTTOM],
+        fill=(255, 255, 255),
+    )
+
+    y = CONTENT_TOP + 50
+
+    # Label do formato
+    label = FORMAT_LABEL.get(content.format, content.format.upper())
+    fl = _font(28)
+    draw.text((CONTENT_LEFT, y), label, font=fl, fill=COLOR_ACTIVE)
+    y += 52
+
+    # Linha decorativa
+    draw.rectangle([CONTENT_LEFT, y, CONTENT_LEFT + 60, y + 6], fill=COLOR_ACTIVE)
+    y += 30
+
+    # Gancho como título principal
+    ft = _font(54, bold=True)
+    y = _draw_text_block(draw, content.hook, CONTENT_LEFT, y, ft, TEXT_DARK,
+                         CONTENT_W, line_gap=12)
+    y += 30
+
+    # Fonte da notícia como subtítulo
+    fs = _font(36)
+    _draw_text_block(draw, content.news.source, CONTENT_LEFT, y, fs, TEXT_GRAY, CONTENT_W)
+
+    # Remove área dos dots (slide único, sem navegação)
+    draw.rectangle([200, DOT_Y - 25, 880, DOT_Y + 25], fill=(255, 255, 255))
+
+    safe = "".join(
+        c if c.isalnum() or c in " -_" else "_"
+        for c in content.news.title[:40]
+    ).strip().replace(" ", "_")
+
+    out_dir = Path(output_dir) / safe
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    path = out_dir / "capa.png"
+    img.save(str(path), "PNG", optimize=True)
+    print(f"[carousel] Capa gerada: {path.name}")
+    return [str(path)]
+
+
 # ── Gerador principal ──────────────────────────────────────────────────────
 def generate_carousel(content: GeneratedContent, output_dir: str) -> list[str]:
     """Gera PNGs usando o template da Rayssa como base. Retorna lista de caminhos."""
