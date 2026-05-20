@@ -104,8 +104,13 @@ def _draw_text_block(
 
 # ── Dots ───────────────────────────────────────────────────────────────────
 def _draw_dots(draw: ImageDraw.Draw, slide_num: int, total: int):
-    # Apaga a faixa original dos dots
-    draw.rectangle([200, DOT_Y - 25, 880, DOT_Y + 25], fill=(255, 255, 255))
+    # Apaga toda a faixa horizontal dos dots usando valores escalados
+    margin = DOT_R_ACTIVE * 3
+    half_span = int((total - 1) * DOT_SPACING / 2) + DOT_R_ACTIVE + 10
+    draw.rectangle(
+        [DOT_CX - half_span, DOT_Y - margin, DOT_CX + half_span, DOT_Y + margin],
+        fill=(255, 255, 255),
+    )
 
     offset = -(total - 1) * DOT_SPACING / 2
     for i in range(total):
