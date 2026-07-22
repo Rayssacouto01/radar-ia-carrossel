@@ -81,11 +81,14 @@ def generate():
     estilo = (request.form.get("estilo") or "tweet").strip()
     if estilo not in ("tweet", "ensino"):
         estilo = "tweet"
+    duracao = (request.form.get("duracao") or "60s").strip()
+    if duracao not in ("30s", "60s", "90s", "3min"):
+        duracao = "60s"
 
     if not url or formato not in ("roteiro", "carrossel"):
         return jsonify(ok=False, error="Informe um link e escolha o formato (roteiro ou carrossel)."), 400
 
-    content = generate_manual(url, formato, _client, estilo=estilo)
+    content = generate_manual(url, formato, _client, estilo=estilo, duracao=duracao)
     if not content:
         return jsonify(ok=False, error="Não foi possível gerar o conteúdo a partir desse link."), 502
 

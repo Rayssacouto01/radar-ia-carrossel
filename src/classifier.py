@@ -30,7 +30,20 @@ CARROSSEL → a notícia comporta uma explicação em vários passos ou ideias, 
 Responda APENAS com um JSON válido: {"format": "roteiro" | "carrossel"}"""
 
 
-ROTEIRO_SYSTEM_PROMPT = """Você é o agente de roteiro. Dado um tema, entrega um roteiro completo pronto para gravar.
+RoteiroDuracao = Literal["30s", "60s", "90s", "3min"]
+
+# Estimativa de palavras por duração, conforme a skill original de roteiro
+DURACAO_PALAVRAS = {
+    "30s": 75,
+    "60s": 150,
+    "90s": 220,
+    "3min": 450,
+}
+
+
+def _roteiro_system_prompt(duracao: RoteiroDuracao) -> str:
+    palavras = DURACAO_PALAVRAS.get(duracao, 150)
+    return f"""Você é o agente de roteiro. Dado um tema, entrega um roteiro completo pronto para gravar.
 
 Regras absolutas:
 - Responda sempre em português do Brasil.
@@ -38,16 +51,16 @@ Regras absolutas:
 - Estrutura obrigatória: gancho → desenvolvimento → CTA.
 - O gancho é a primeira frase. Sem introdução.
 - Nunca comece com "Hoje vou falar sobre..." ou frases parecidas.
-- Duração fixa: 60 segundos, aproximadamente 150 palavras no total (gancho + desenvolvimento + cta).
+- Duração fixa: {duracao}, aproximadamente {palavras} palavras no total (gancho + desenvolvimento + cta).
 - Tom: direto, confiante, sem enrolação.
 
 Responda APENAS com um JSON válido seguindo este schema:
-{
+{{
   "gancho": "a primeira frase do roteiro, direto ao ponto, sem introdução",
   "desenvolvimento": "corpo do roteiro, explicando o tema de forma natural e direta, como se estivesse falando",
   "cta": "chamada para ação final, curta",
   "notas_gravacao": "1-2 frases de instrução de tom/performance para quem for gravar (como falar, onde pausar, onde dar ênfase)"
-}"""
+}}"""
 
 
 CARROSSEL_SYSTEM_PROMPT = """Você gera o texto de carrosséis para Instagram no formato visual de tweet (estilo X/Twitter), para o perfil @rayssacouto.ia.
@@ -176,9 +189,14 @@ def _classify_format(item: NewsItem, client: anthropic.Anthropic) -> ContentType
     return fmt if fmt in ("roteiro", "carrossel") else "carrossel"
 
 
-def _generate_roteiro(item: NewsItem, client: anthropic.Anthropic) -> Optional[GeneratedContent]:
+def _generate_roteiro(
+    item: NewsItem, client: anthropic.Anthropic, duracao: RoteiroDuracao = "60s"
+) -> Optional[GeneratedContent]:
+    if duracao not in DURACAO_PALAVRAS:
+        duracao = "60s"
+
     data = _call_json(
-        ROTEIRO_SYSTEM_PROMPT,
+        _roteiro_system_prompt(duracao),
         f"Tema do roteiro (baseado nesta notícia de IA):\n\n{_news_context(item)}",
         client,
     )
@@ -194,7 +212,7 @@ def _generate_roteiro(item: NewsItem, client: anthropic.Anthropic) -> Optional[G
         roteiro_desenvolvimento=data.get("desenvolvimento", ""),
         roteiro_cta=data.get("cta", ""),
         roteiro_notas_gravacao=data.get("notas_gravacao", ""),
-        roteiro_duracao="60s",
+        roteiro_duracao=duracao,
     )
 
 
@@ -247,11 +265,12 @@ def generate_manual(
     formato: ContentType,
     client: anthropic.Anthropic,
     estilo: CopyStyle = "tweet",
+    duracao: RoteiroDuracao = "60s",
 ) -> Optional[GeneratedContent]:
     """Gera conteúdo a partir de um link avulso, pulando a classificação automática.
 
-    Usado pela interface web, onde o formato (e, no caso de carrossel, o estilo de copy)
-    já vem escolhido pelo usuário.
+    Usado pela interface web, onde o formato (e, no caso de carrossel, o estilo de copy;
+    no caso de roteiro, a duração) já vem escolhido pelo usuário.
     """
     title = fetch_article_title(url) or url
     full_text = fetch_article_text(url)
@@ -267,5 +286,5 @@ def generate_manual(
     )
 
     if formato == "roteiro":
-        return _generate_roteiro(item, client)
+        return _generate_roteiro(item, client, duracao=duracao)
     return _generate_carrossel(item, client, auto_image=False, estilo=estilo)

@@ -293,6 +293,19 @@
         </div>
       </div>
 
+      <div id="roteiro-section" style="display:none;">
+        <div class="section">
+          <label class="field-label">Duração do roteiro</label>
+          <div class="chip-grid" id="duracao-toggle" style="grid-template-columns:repeat(4,1fr);">
+            <div class="chip" data-value="30s"><span class="dot"></span><span>30s</span></div>
+            <div class="chip active" data-value="60s"><span class="dot"></span><span>60s</span></div>
+            <div class="chip" data-value="90s"><span class="dot"></span><span>90s</span></div>
+            <div class="chip" data-value="3min"><span class="dot"></span><span>3min</span></div>
+          </div>
+          <p class="hint">Controla o tamanho do roteiro (~75 a ~450 palavras).</p>
+        </div>
+      </div>
+
       <button id="gerar">Gerar</button>
     </div>
 
@@ -326,11 +339,14 @@
     }
 
     const mediaSection = document.getElementById('media-section');
+    const roteiroSection = document.getElementById('roteiro-section');
     setupSegmented('formato-toggle', (value) => {
       mediaSection.style.display = value === 'carrossel' ? 'block' : 'none';
+      roteiroSection.style.display = value === 'roteiro' ? 'block' : 'none';
     });
 
     setupSegmented('estilo-toggle');
+    setupChips('duracao-toggle');
 
     const uploadFields = document.getElementById('upload-fields');
     setupChips('media-mode-toggle', (value) => {
@@ -401,6 +417,8 @@
             }
           });
         }
+      } else if (formato === 'roteiro') {
+        formData.append('duracao', getChipValue('duracao-toggle'));
       }
 
       btn.disabled = true;
