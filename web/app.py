@@ -176,7 +176,7 @@ def generate():
         if downloaded_video_dir:
             shutil.rmtree(downloaded_video_dir, ignore_errors=True)
 
-    return jsonify(ok=True, formato="carrossel", news=news, slides=slides)
+    return jsonify(ok=True, formato="carrossel", news=news, slides=slides, caption=content.carousel_caption)
 
 
 @app.route("/render-slide", methods=["POST"])

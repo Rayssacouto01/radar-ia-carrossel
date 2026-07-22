@@ -89,7 +89,12 @@ Estrutura AIDA obrigatória, distribuída nos slides que você gerar:
 
 Não gere um slide de CTA/fechamento — isso é adicionado automaticamente pelo sistema depois do seu último slide.
 
-Responda APENAS com um JSON válido: {"slides": ["texto do slide 1 (hook)", "texto do slide 2", "..."]}
+Além dos slides, gere também a legenda do post (campo "legenda"): 2-4 frases expandindo o gancho
+ou dando um contexto extra que não coube nos slides, terminando com uma chamada pra ação (comentar,
+salvar ou seguir) e 3 a 5 hashtags relevantes ao final. Diferente dos slides, a legenda PODE usar
+emoji com moderação — é o texto que acompanha o post, não um slide.
+
+Responda APENAS com um JSON válido: {"slides": ["texto do slide 1 (hook)", "texto do slide 2", "..."], "legenda": "..."}
 
 Gere entre 5 e 9 slides de conteúdo (o sistema soma 1 slide de CTA no final, totalizando 6 a 10 slides)."""
 
@@ -123,7 +128,12 @@ Estrutura obrigatória:
 
 Não gere um slide de CTA/fechamento — isso é adicionado automaticamente pelo sistema depois do seu último slide.
 
-Responda APENAS com um JSON válido: {"slides": ["slide 1 (ganho)", "slide 2 (contexto)", "passo 1", "...", "resultado"]}
+Além dos slides, gere também a legenda do post (campo "legenda"): 2-4 frases reforçando o que a
+pessoa vai aprender, terminando com uma chamada pra ação (comentar, salvar ou seguir) e 3 a 5
+hashtags relevantes ao final. Diferente dos slides, a legenda PODE usar emoji com moderação — é o
+texto que acompanha o post, não um slide.
+
+Responda APENAS com um JSON válido: {"slides": ["slide 1 (ganho)", "slide 2 (contexto)", "passo 1", "...", "resultado"], "legenda": "..."}
 
 Gere entre 6 e 8 slides de conteúdo (o sistema soma 1 slide de CTA no final, totalizando 7 a 9 slides)."""
 
@@ -145,6 +155,7 @@ class GeneratedContent:
 
     # carrossel — já inclui o slide de CTA como último item
     carousel_slides: list[str] = field(default_factory=list)
+    carousel_caption: str = ""
 
 
 def _call_json(system_prompt: str, user_message: str, client: anthropic.Anthropic) -> Optional[dict]:
@@ -245,6 +256,7 @@ def _generate_carrossel(
         format="carrossel",
         hook=slides[0],
         carousel_slides=slides,
+        carousel_caption=data.get("legenda", ""),
     )
 
 

@@ -82,6 +82,13 @@ def _card_html(content: GeneratedContent, carousel_paths: list[str] = None) -> s
         </div>"""
             )
 
+        if content.carousel_caption:
+            parts.append(f"""
+        <div style="margin-top:16px;">
+          <div style="font-size:11px;font-weight:700;color:#718096;text-transform:uppercase;margin-bottom:6px;">Legenda do post</div>
+          <div style="background:#F0FFF4;border-radius:8px;padding:14px 16px;font-size:14px;white-space:pre-wrap;color:#2D3748;">{content.carousel_caption}</div>
+        </div>""")
+
     parts.append("</div></div>")
     return "".join(parts)
 

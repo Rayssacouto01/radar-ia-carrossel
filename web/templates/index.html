@@ -504,6 +504,14 @@
           });
           html += '</div>';
 
+          if (data.caption) {
+            html += `<div class="panel edit-last">
+              <label class="field-label">Legenda do post</label>
+              <textarea id="caption-text" rows="5">${data.caption}</textarea>
+              <button type="button" id="copy-caption-btn">Copiar legenda</button>
+            </div>`;
+          }
+
           const lastSlide = data.slides[data.slides.length - 1];
           html += `<div class="panel edit-last">
             <label class="field-label">Editar último slide (CTA)</label>
@@ -516,6 +524,20 @@
 
         const zipBtn = document.getElementById('download-zip-btn');
         if (zipBtn) { zipBtn.addEventListener('click', baixarZip); }
+
+        const copyCaptionBtn = document.getElementById('copy-caption-btn');
+        if (copyCaptionBtn) {
+          copyCaptionBtn.addEventListener('click', async () => {
+            const text = document.getElementById('caption-text').value;
+            try {
+              await navigator.clipboard.writeText(text);
+              copyCaptionBtn.textContent = 'Copiado!';
+              setTimeout(() => { copyCaptionBtn.textContent = 'Copiar legenda'; }, 1500);
+            } catch (e) {
+              alert('Não consegui copiar automaticamente. Selecione o texto e copie manualmente.');
+            }
+          });
+        }
 
         const updateBtn = document.getElementById('update-last-btn');
         if (updateBtn) {
