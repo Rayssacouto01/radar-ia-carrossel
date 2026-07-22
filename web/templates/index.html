@@ -4,113 +4,292 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Radar IA — Gerador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg: oklch(15% 0.004 60);
+      --glow1: oklch(64% 0.19 42 / 0.09);
+      --glow2: oklch(55% 0.1 40 / 0.07);
+      --glass: oklch(90% 0.01 60 / 0.055);
+      --glass-light: oklch(90% 0.01 60 / 0.05);
+      --glass-faint: oklch(90% 0.01 60 / 0.04);
+      --border: oklch(95% 0.01 60 / 0.13);
+      --border-soft: oklch(95% 0.01 60 / 0.1);
+      --border-header: oklch(95% 0.01 60 / 0.08);
+      --text: oklch(96% 0.002 60);
+      --text-dim: oklch(78% 0.01 60);
+      --text-muted: oklch(62% 0.01 60);
+      --text-faint: oklch(56% 0.01 60);
+      --orange: oklch(64% 0.19 42);
+      --orange-2: oklch(70% 0.17 55);
+      --orange-label: oklch(66% 0.17 42);
+      --verified: oklch(62% 0.15 240);
+      --avatar-1: oklch(55% 0.05 250);
+      --avatar-2: oklch(40% 0.04 260);
+    }
     * { box-sizing: border-box; }
-    body { margin:0; background:#0A0A0A; color:#E7E9EA; font-family:Arial,sans-serif; }
-    .wrap { max-width:720px; margin:0 auto; padding:32px 20px 80px; }
-    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
-    header h1 { font-size:20px; margin:0; }
-    header a { color:#71767B; font-size:13px; text-decoration:none; }
-    .card { background:#161616; border:1px solid #262626; border-radius:12px; padding:24px; }
-    label { display:block; font-size:12px; font-weight:700; color:#71767B; text-transform:uppercase; margin-bottom:6px; }
-    input[type=url] { width:100%; padding:12px 14px; border-radius:8px; border:1px solid #333; background:#0A0A0A; color:#fff; font-size:14px; }
-    .formats { display:flex; gap:10px; margin:16px 0; }
-    .formats label.opt { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:8px; border:1px solid #333; cursor:pointer; text-transform:none; font-weight:600; color:#E7E9EA; }
-    .formats input[type=radio] { accent-color:#FF5722; }
-    .formats label.opt.active { border-color:#FF5722; background:rgba(255,87,34,0.08); }
-    button#gerar { width:100%; padding:14px; border:none; border-radius:8px; background:#FF5722; color:#fff; font-weight:700; font-size:15px; cursor:pointer; margin-top:8px; }
-    button#gerar:disabled { opacity:0.5; cursor:not-allowed; }
-    button#gerar:hover:not(:disabled) { background:#e64a19; }
-    #resultado { margin-top:28px; }
-    .erro { color:#FC8181; background:#2D1414; border:1px solid #5c2323; padding:12px 16px; border-radius:8px; font-size:14px; }
-    .roteiro-box { background:#0A0A0A; border:1px solid #262626; border-radius:8px; padding:20px; white-space:pre-wrap; line-height:1.6; font-size:14px; }
-    .roteiro-box b { color:#FF5722; }
-    .slides { display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; }
-    .slides figure { margin:0; flex:0 0 auto; text-align:center; }
-    .slides img, .slides video { width:200px; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.5); display:block; }
-    .slides figcaption { font-size:12px; color:#71767B; margin-top:6px; }
-    .slides a { font-size:11px; color:#FF5722; text-decoration:none; }
-    .loading { color:#71767B; font-size:14px; }
-    .edit-last { margin-top:18px; padding-top:18px; border-top:1px solid #262626; }
-    .edit-last textarea { width:100%; min-height:70px; padding:10px 12px; border-radius:8px; border:1px solid #333; background:#0A0A0A; color:#fff; font-size:14px; font-family:inherit; resize:vertical; }
-    .edit-last button { margin-top:8px; padding:10px 16px; border:none; border-radius:8px; background:#333; color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
-    .edit-last button:hover:not(:disabled) { background:#444; }
-    .edit-last button:disabled { opacity:0.5; cursor:not-allowed; }
-    .news-meta { font-size:12px; color:#71767B; margin-bottom:16px; }
-    .news-meta a { color:#71767B; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 15% -10%, var(--glow1), transparent 25%),
+        radial-gradient(circle at 90% 10%, var(--glow2), transparent 25%),
+        var(--bg);
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+    }
+    ::selection { background: oklch(64% 0.19 42 / 0.35); }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    #media-section { margin-top:18px; padding-top:18px; border-top:1px solid #262626; display:none; }
-    .media-modes { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
-    .media-modes label.opt { flex:1; padding:10px; font-size:13px; }
-    #upload-fields { display:none; }
-    .field-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
-    .field-row input[type=file] { flex:1; font-size:12px; color:#E7E9EA; }
-    .field-row input[type=number] { width:70px; padding:8px; border-radius:6px; border:1px solid #333; background:#0A0A0A; color:#fff; }
-    .field-row button.remove { background:#2D1414; color:#FC8181; border:1px solid #5c2323; border-radius:6px; padding:6px 10px; cursor:pointer; }
-    button.add-image { background:transparent; border:1px dashed #444; color:#71767B; border-radius:6px; padding:8px 12px; font-size:12px; cursor:pointer; margin-top:4px; }
-    .hint { font-size:11px; color:#71767B; margin:4px 0 12px; }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: oklch(15% 0.004 60 / 0.7);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-header);
+    }
+    header .inner {
+      max-width: 1080px; margin: 0 auto; padding: 20px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 19px; letter-spacing: -0.01em;
+    }
+    .logo span.emoji { font-size: 20px; }
+    .tab {
+      font-family: 'Manrope', sans-serif; font-weight: 600; font-size: 14px;
+      color: var(--text); position: relative; padding-bottom: 20px; margin-left: 32px;
+    }
+    .tab::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+      background: linear-gradient(90deg, var(--orange), var(--orange-2)); border-radius: 2px;
+    }
+    header a.sair {
+      font-size: 13px; font-weight: 500; color: var(--text-muted); text-decoration: none;
+      padding: 8px 14px; border-radius: 8px; transition: background 0.15s, color 0.15s;
+    }
+    header a.sair:hover { background: oklch(95% 0.01 60 / 0.06); color: oklch(85% 0.01 60); }
+
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 96px; }
+
+    .eyebrow {
+      font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 12px;
+      letter-spacing: 0.08em; color: var(--orange-label); margin-bottom: 12px;
+    }
+
+    .panel {
+      background: var(--glass);
+      backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+      border: 1px solid var(--border); border-radius: 24px; padding: 40px;
+      box-shadow: 0 24px 60px -24px rgba(0,0,0,0.65), inset 0 1px 0 oklch(100% 0 0 / 0.07);
+    }
+
+    label.field-label {
+      display: block; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
+      letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase;
+    }
+
+    input[type=url], input[type=text], input[type=number], textarea {
+      width: 100%; box-sizing: border-box;
+      background: var(--glass-light); backdrop-filter: blur(10px);
+      border: 1px solid var(--border); border-radius: 14px;
+      padding: 16px 18px; color: var(--text); font-size: 15px; font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color 0.15s;
+    }
+    input::placeholder, textarea::placeholder { color: oklch(55% 0.01 60); }
+    input:focus, textarea:focus { border-color: oklch(64% 0.19 42 / 0.7); }
+
+    /* Segmented control (2 opções, indicador deslizante) */
+    .segmented {
+      position: relative; display: flex; margin-top: 26px; padding: 4px;
+      border-radius: 16px; background: var(--glass-light); border: 1px solid var(--border-soft);
+    }
+    .segmented .seg-indicator {
+      position: absolute; top: 4px; bottom: 4px; width: calc(50% - 4px); left: 4px;
+      border-radius: 12px; background: linear-gradient(135deg, var(--orange), var(--orange-2));
+      box-shadow: 0 6px 18px -6px oklch(64% 0.19 42 / 0.6);
+      transition: left 0.25s cubic-bezier(.4,0,.2,1);
+    }
+    .segmented .seg-opt {
+      flex: 1; position: relative; z-index: 1; display: flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 13px; border-radius: 12px; cursor: pointer; background: transparent;
+      font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 14.5px;
+      color: var(--text-dim); transition: color 0.2s;
+    }
+    .segmented .seg-opt.active { color: white; }
+    .segmented.small { margin-top: 0; }
+    .segmented.small .seg-opt { font-size: 13px; padding: 11px; }
+
+    .section { margin-top: 32px; }
+    .hint { font-size: 13px; line-height: 1.65; color: var(--text-faint); margin: 12px 2px 0; }
+
+    /* Chips (grid de mídia) */
+    .chip-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+    .chip {
+      display: flex; align-items: center; gap: 9px; padding: 13px 12px;
+      border-radius: 12px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13.5px;
+      border: 1px solid var(--border-soft); background: var(--glass-faint);
+      color: var(--text-dim); transition: border-color 0.15s, background 0.15s, transform 0.15s;
+    }
+    .chip:hover { transform: translateY(-1px); }
+    .chip.active {
+      border: 1px solid oklch(64% 0.19 42 / 0.85); background: oklch(64% 0.19 42 / 0.15);
+      color: oklch(97% 0.002 60); box-shadow: 0 0 0 1px oklch(64% 0.19 42 / 0.15) inset;
+    }
+    .chip .dot {
+      width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; display: inline-block;
+      border: 1.5px solid oklch(65% 0.01 60 / 0.5);
+    }
+    .chip.active .dot {
+      border: 1.5px solid var(--orange);
+      background: radial-gradient(var(--orange) 0%, var(--orange) 45%, transparent 50%);
+    }
+
+    #upload-fields { display: none; margin-top: 20px; }
+    input[type=file] {
+      width: 100%; font-size: 13px; color: var(--text-dim); padding: 10px 0;
+    }
+    .field-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .field-row input[type=file] { flex: 1; }
+    .field-row input[type=number] { width: 90px; padding: 12px; }
+    .field-row button.remove {
+      background: oklch(55% 0.19 25 / 0.15); color: oklch(75% 0.15 25); border: 1px solid oklch(55% 0.19 25 / 0.4);
+      border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: 15px;
+    }
+    button.add-image {
+      background: transparent; border: 1px dashed var(--border); color: var(--text-muted);
+      border-radius: 10px; padding: 10px 14px; font-size: 13px; cursor: pointer; margin-top: 6px;
+      font-family: 'Inter', sans-serif;
+    }
+    button.add-image:hover { border-color: oklch(95% 0.01 60 / 0.25); color: var(--text-dim); }
+
+    button#gerar {
+      width: 100%; margin-top: 30px; padding: 17px; border-radius: 14px; border: none;
+      background: linear-gradient(135deg, var(--orange), var(--orange-2));
+      color: white; font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 16px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+      box-shadow: 0 14px 34px -12px oklch(64% 0.19 42 / 0.55);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    button#gerar:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 18px 40px -12px oklch(64% 0.19 42 / 0.65); }
+    button#gerar:disabled { background: oklch(64% 0.19 42 / 0.6); cursor: default; }
+    .spinner {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+      display: inline-block; animation: spin 0.7s linear infinite;
+    }
+
+    #resultado { margin-top: 44px; }
+    .erro {
+      color: oklch(75% 0.15 25); background: oklch(28% 0.06 25 / 0.5); border: 1px solid oklch(45% 0.15 25 / 0.5);
+      padding: 14px 18px; border-radius: 14px; font-size: 14px;
+    }
+    .loading { color: var(--text-faint); font-size: 14px; }
+    .news-meta { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 15px; margin-bottom: 4px; }
+    .news-meta a { color: oklch(85% 0.01 60); text-decoration: none; border-bottom: 1px solid oklch(50% 0.01 60); }
+    .news-meta span { color: var(--text-faint); }
+
+    .slides {
+      display: flex; gap: 20px; margin-top: 20px; overflow-x: auto; padding: 4px 4px 12px;
+    }
+    .slides::-webkit-scrollbar { height: 8px; }
+    .slides::-webkit-scrollbar-thumb { background: oklch(38% 0.01 50 / 0.6); border-radius: 8px; }
+    .slides figure { margin: 0; flex: 0 0 240px; }
+    .slide-card {
+      background: var(--glass); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+      border: 1px solid var(--border); border-radius: 18px; aspect-ratio: 4/5;
+      display: flex; align-items: center; justify-content: center; position: relative;
+      box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.07), 0 10px 28px -14px rgba(0,0,0,0.55);
+      transition: transform 0.2s, border-color 0.2s; overflow: hidden;
+    }
+    .slide-card:hover { transform: translateY(-4px); border-color: oklch(95% 0.01 60 / 0.24); }
+    .slide-card img, .slide-card video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .slides figcaption {
+      text-align: center; margin-top: 12px; font-family: 'Manrope', sans-serif; font-weight: 600;
+      font-size: 13.5px; color: oklch(90% 0.002 60);
+    }
+    .slides a.baixar {
+      display: block; text-align: center; margin-top: 5px; font-size: 12.5px; font-weight: 500;
+      color: var(--orange-label); cursor: pointer; text-decoration: none;
+    }
+
+    .roteiro-box {
+      background: var(--glass-light); border: 1px solid var(--border-soft); border-radius: 18px;
+      padding: 24px; white-space: pre-wrap; line-height: 1.65; font-size: 14.5px;
+      box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.06);
+    }
+    .roteiro-box b { color: var(--orange-label); font-family: 'Manrope', sans-serif; }
+
+    .edit-last { margin-top: 28px; }
+    .edit-last textarea { min-height: 76px; font-family: inherit; resize: vertical; }
+    .edit-last button {
+      margin-top: 12px; padding: 12px 20px; border: none; border-radius: 12px;
+      background: oklch(95% 0.01 60 / 0.1); color: var(--text); font-weight: 700; font-size: 13px;
+      cursor: pointer; font-family: 'Manrope', sans-serif; transition: background 0.15s;
+    }
+    .edit-last button:hover:not(:disabled) { background: oklch(95% 0.01 60 / 0.16); }
+    .edit-last button:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <h1>🤖 Radar IA — Gerador</h1>
-      <a href="/logout">Sair</a>
-    </header>
+  <header>
+    <div class="inner">
+      <div style="display:flex; align-items:center;">
+        <div class="logo"><span class="emoji">🤖</span> Radar IA</div>
+        <span class="tab">Gerador</span>
+      </div>
+      <a href="/logout" class="sair">Sair</a>
+    </div>
+  </header>
 
-    <div class="card">
-      <label for="url">Link do artigo/notícia</label>
+  <div class="wrap">
+    <div class="eyebrow">NOVO CONTEÚDO</div>
+
+    <div class="panel">
+      <label class="field-label" for="url">Link do artigo/notícia</label>
       <input type="url" id="url" placeholder="https://..." required>
 
-      <div class="formats">
-        <label class="opt active" data-value="carrossel">
-          <input type="radio" name="formato" value="carrossel" checked> 📸 Carrossel
-        </label>
-        <label class="opt" data-value="roteiro">
-          <input type="radio" name="formato" value="roteiro"> 🎬 Roteiro
-        </label>
+      <div class="segmented" id="formato-toggle">
+        <div class="seg-indicator"></div>
+        <div class="seg-opt active" data-value="carrossel">📸 Carrossel</div>
+        <div class="seg-opt" data-value="roteiro">🎬 Roteiro</div>
       </div>
 
       <div id="media-section">
-        <label>Estilo da copy</label>
-        <div class="media-modes" id="estilo-toggle">
-          <label class="opt active" data-value="tweet">
-            <input type="radio" name="estilo" value="tweet" checked> Tweet (AIDA, provocativo)
-          </label>
-          <label class="opt" data-value="ensino">
-            <input type="radio" name="estilo" value="ensino"> Ensino (passo a passo)
-          </label>
+        <div class="section">
+          <label class="field-label">Estilo da copy</label>
+          <div class="segmented small" id="estilo-toggle">
+            <div class="seg-indicator"></div>
+            <div class="seg-opt active" data-value="tweet">Tweet (AIDA, provocativo)</div>
+            <div class="seg-opt" data-value="ensino">Ensino (passo a passo)</div>
+          </div>
+          <p class="hint">"Ensino" abre com "Vou te ensinar a..." e estrutura o carrossel em passos práticos pra pessoa já sair usando.</p>
         </div>
-        <p class="hint">"Ensino" abre com "Vou te ensinar a..." e estrutura o carrossel em passos práticos pra pessoa já sair usando.</p>
 
-        <label style="margin-top:14px;">Mídia no carrossel</label>
-        <div class="media-modes" id="media-mode-toggle">
-          <label class="opt active" data-value="none">
-            <input type="radio" name="media_mode" value="none" checked> Nenhuma
-          </label>
-          <label class="opt" data-value="image_auto">
-            <input type="radio" name="media_mode" value="image_auto"> Imagem do artigo
-          </label>
-          <label class="opt" data-value="video_auto">
-            <input type="radio" name="media_mode" value="video_auto"> Vídeo do artigo
-          </label>
-          <label class="opt" data-value="upload">
-            <input type="radio" name="media_mode" value="upload"> Fazer upload
-          </label>
-        </div>
-        <p class="hint">"Vídeo do artigo" procura um vídeo já embutido no link colado acima (arquivo direto ou embed de YouTube/Vimeo) e usa ele como primeiro item do carrossel.</p>
+        <div class="section">
+          <label class="field-label">Mídia no carrossel</label>
+          <div class="chip-grid" id="media-mode-toggle">
+            <div class="chip active" data-value="none"><span class="dot"></span><span>Nenhuma</span></div>
+            <div class="chip" data-value="image_auto"><span class="dot"></span><span>Imagem do artigo</span></div>
+            <div class="chip" data-value="video_auto"><span class="dot"></span><span>Vídeo do artigo</span></div>
+            <div class="chip" data-value="upload"><span class="dot"></span><span>Fazer upload</span></div>
+          </div>
+          <p class="hint">"Vídeo do artigo" procura um vídeo já embutido no link colado acima (arquivo direto ou embed de YouTube/Vimeo) e usa ele como primeiro item do carrossel.</p>
 
-        <div id="upload-fields">
-          <label>Vídeo (opcional — vira o primeiro item do carrossel)</label>
-          <input type="file" id="video-input" accept="video/mp4">
-          <p class="hint" style="margin:8px 0;">ou</p>
-          <input type="url" id="youtube-input" placeholder="Link do YouTube (extraído automaticamente)">
-          <p class="hint">Se enviar um vídeo (arquivo ou link), o texto do gancho vira o slide seguinte a ele, não é perdido. Vídeos de até 3 minutos.</p>
+          <div id="upload-fields">
+            <label class="field-label">Vídeo (opcional — vira o primeiro item do carrossel)</label>
+            <input type="file" id="video-input" accept="video/mp4">
+            <p class="hint" style="margin:8px 0;">ou</p>
+            <input type="url" id="youtube-input" placeholder="Link do YouTube (extraído automaticamente)">
+            <p class="hint">Se enviar um vídeo (arquivo ou link), o texto do gancho vira o slide seguinte a ele, não é perdido. Vídeos de até 3 minutos.</p>
 
-          <label style="margin-top:14px;">Imagens por slide (opcional)</label>
-          <div id="image-rows"></div>
-          <button type="button" class="add-image" id="add-image-btn">+ Adicionar imagem</button>
-          <p class="hint">Escolha a imagem e o número do slide onde ela deve aparecer (embaixo do texto).</p>
+            <label class="field-label" style="margin-top:18px;">Imagens por slide (opcional)</label>
+            <div id="image-rows"></div>
+            <button type="button" class="add-image" id="add-image-btn">+ Adicionar imagem</button>
+            <p class="hint">Escolha a imagem e o número do slide onde ela deve aparecer (embaixo do texto).</p>
+          </div>
         </div>
       </div>
 
@@ -121,8 +300,22 @@
   </div>
 
   <script>
-    function setupToggle(selector, onChange) {
-      const opts = document.querySelectorAll(selector);
+    function setupSegmented(containerId, onChange) {
+      const container = document.getElementById(containerId);
+      const indicator = container.querySelector('.seg-indicator');
+      const opts = container.querySelectorAll('.seg-opt');
+      opts.forEach((opt, i) => {
+        opt.addEventListener('click', () => {
+          opts.forEach(o => o.classList.remove('active'));
+          opt.classList.add('active');
+          indicator.style.left = i === 0 ? '4px' : 'calc(50% + 0px)';
+          if (onChange) onChange(opt.dataset.value);
+        });
+      });
+    }
+
+    function setupChips(containerId, onChange) {
+      const opts = document.querySelectorAll(`#${containerId} .chip`);
       opts.forEach(opt => {
         opt.addEventListener('click', () => {
           opts.forEach(o => o.classList.remove('active'));
@@ -133,15 +326,14 @@
     }
 
     const mediaSection = document.getElementById('media-section');
-    setupToggle('.formats .opt', (value) => {
+    setupSegmented('formato-toggle', (value) => {
       mediaSection.style.display = value === 'carrossel' ? 'block' : 'none';
     });
-    mediaSection.style.display = document.querySelector('input[name=formato]:checked').value === 'carrossel' ? 'block' : 'none';
 
-    setupToggle('#estilo-toggle .opt');
+    setupSegmented('estilo-toggle');
 
     const uploadFields = document.getElementById('upload-fields');
-    setupToggle('#media-mode-toggle .opt', (value) => {
+    setupChips('media-mode-toggle', (value) => {
       uploadFields.style.display = value === 'upload' ? 'block' : 'none';
     });
 
@@ -167,12 +359,19 @@
       imageRows.appendChild(row);
     });
 
+    function getSegmentedValue(containerId) {
+      return document.querySelector(`#${containerId} .seg-opt.active`).dataset.value;
+    }
+    function getChipValue(containerId) {
+      return document.querySelector(`#${containerId} .chip.active`).dataset.value;
+    }
+
     const btn = document.getElementById('gerar');
     const resultado = document.getElementById('resultado');
 
     btn.addEventListener('click', async () => {
       const url = document.getElementById('url').value.trim();
-      const formato = document.querySelector('input[name=formato]:checked').value;
+      const formato = getSegmentedValue('formato-toggle');
       if (!url) { return; }
 
       const formData = new FormData();
@@ -180,10 +379,9 @@
       formData.append('formato', formato);
 
       if (formato === 'carrossel') {
-        const estilo = document.querySelector('input[name=estilo]:checked').value;
-        formData.append('estilo', estilo);
+        formData.append('estilo', getSegmentedValue('estilo-toggle'));
 
-        const mediaMode = document.querySelector('input[name=media_mode]:checked').value;
+        const mediaMode = getChipValue('media-mode-toggle');
         formData.append('media_mode', mediaMode);
 
         if (mediaMode === 'upload') {
@@ -206,7 +404,7 @@
       }
 
       btn.disabled = true;
-      btn.textContent = 'Gerando...';
+      btn.innerHTML = '<span class="spinner"></span> Gerando...';
       resultado.innerHTML = '<p class="loading">Gerando conteúdo, pode levar alguns segundos...</p>';
 
       try {
@@ -218,7 +416,7 @@
           return;
         }
 
-        let html = `<p class="news-meta"><a href="${data.news.url}" target="_blank">${data.news.title}</a> — ${data.news.source}</p>`;
+        let html = `<p class="news-meta"><a href="${data.news.url}" target="_blank">${data.news.title}</a> <span>— ${data.news.source}</span></p>`;
 
         if (data.formato === 'roteiro') {
           const r = data.roteiro;
@@ -237,16 +435,16 @@
               ? `<video src="${s.data_uri}" controls></video>`
               : `<img src="${s.data_uri}" alt="Slide ${s.index}">`;
             html += `<figure id="slide-fig-${s.index}">
-              ${media}
+              <div class="slide-card">${media}</div>
               <figcaption>${s.is_video ? 'Vídeo' : 'Slide'} ${s.index}</figcaption>
-              <a href="${s.data_uri}" download="slide_${String(s.index).padStart(2,'0')}.${ext}">Baixar</a>
+              <a class="baixar" href="${s.data_uri}" download="slide_${String(s.index).padStart(2,'0')}.${ext}">↓ Baixar</a>
             </figure>`;
           });
           html += '</div>';
 
           const lastSlide = data.slides[data.slides.length - 1];
-          html += `<div class="edit-last">
-            <label>Editar último slide (CTA)</label>
+          html += `<div class="panel edit-last">
+            <label class="field-label">Editar último slide (CTA)</label>
             <textarea id="last-slide-text">${lastSlide.text}</textarea>
             <button type="button" id="update-last-btn" data-index="${lastSlide.index}">Atualizar último slide</button>
           </div>`;
@@ -270,7 +468,7 @@
               const idx = updateBtn.dataset.index;
               const fig = document.getElementById(`slide-fig-${idx}`);
               fig.querySelector('img').src = d.data_uri;
-              fig.querySelector('a').href = d.data_uri;
+              fig.querySelector('a.baixar').href = d.data_uri;
             } catch (e) {
               alert('Erro de conexão. Tenta de novo.');
             } finally {
