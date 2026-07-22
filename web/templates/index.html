@@ -40,7 +40,7 @@
     .news-meta a { color:#71767B; }
 
     #media-section { margin-top:18px; padding-top:18px; border-top:1px solid #262626; display:none; }
-    .media-modes { display:flex; gap:8px; margin-bottom:14px; }
+    .media-modes { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
     .media-modes label.opt { flex:1; padding:10px; font-size:13px; }
     #upload-fields { display:none; }
     .field-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
@@ -77,13 +77,17 @@
           <label class="opt active" data-value="none">
             <input type="radio" name="media_mode" value="none" checked> Nenhuma
           </label>
-          <label class="opt" data-value="auto">
-            <input type="radio" name="media_mode" value="auto"> Automática do artigo
+          <label class="opt" data-value="image_auto">
+            <input type="radio" name="media_mode" value="image_auto"> Imagem do artigo
+          </label>
+          <label class="opt" data-value="video_auto">
+            <input type="radio" name="media_mode" value="video_auto"> Vídeo do artigo
           </label>
           <label class="opt" data-value="upload">
             <input type="radio" name="media_mode" value="upload"> Fazer upload
           </label>
         </div>
+        <p class="hint">"Vídeo do artigo" procura um vídeo já embutido no link colado acima (arquivo direto ou embed de YouTube/Vimeo) e usa ele como primeiro item do carrossel.</p>
 
         <div id="upload-fields">
           <label>Vídeo (opcional — vira o primeiro item do carrossel)</label>

@@ -21,7 +21,7 @@ import anthropic
 from src.carousel_generator import generate_carousel, render_slide_png
 from src.classifier import generate_manual
 from src.scraper import fetch_article_image
-from src.video_downloader import download_video
+from src.video_downloader import download_video, extract_video_from_page
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 WEBAPP_PASSWORD = os.getenv("WEBAPP_PASSWORD", "")
@@ -109,8 +109,14 @@ def generate():
         image_map = {}
         video_path = None
 
-        if media_mode == "auto":
+        if media_mode == "image_auto":
             content.news.image_path = fetch_article_image(url)
+
+        elif media_mode == "video_auto":
+            video_path, error = extract_video_from_page(url)
+            if error:
+                return jsonify(ok=False, error=error), 400
+            downloaded_video_dir = str(Path(video_path).parent)
 
         elif media_mode == "upload":
             youtube_url = (request.form.get("youtube_url") or "").strip()
