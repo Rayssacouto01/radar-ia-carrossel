@@ -27,12 +27,23 @@
     .roteiro-box b { color:#FF5722; }
     .slides { display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; }
     .slides figure { margin:0; flex:0 0 auto; text-align:center; }
-    .slides img { width:200px; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.5); display:block; }
+    .slides img, .slides video { width:200px; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.5); display:block; }
     .slides figcaption { font-size:12px; color:#71767B; margin-top:6px; }
     .slides a { font-size:11px; color:#FF5722; text-decoration:none; }
     .loading { color:#71767B; font-size:14px; }
     .news-meta { font-size:12px; color:#71767B; margin-bottom:16px; }
     .news-meta a { color:#71767B; }
+
+    #media-section { margin-top:18px; padding-top:18px; border-top:1px solid #262626; display:none; }
+    .media-modes { display:flex; gap:8px; margin-bottom:14px; }
+    .media-modes label.opt { flex:1; padding:10px; font-size:13px; }
+    #upload-fields { display:none; }
+    .field-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+    .field-row input[type=file] { flex:1; font-size:12px; color:#E7E9EA; }
+    .field-row input[type=number] { width:70px; padding:8px; border-radius:6px; border:1px solid #333; background:#0A0A0A; color:#fff; }
+    .field-row button.remove { background:#2D1414; color:#FC8181; border:1px solid #5c2323; border-radius:6px; padding:6px 10px; cursor:pointer; }
+    button.add-image { background:transparent; border:1px dashed #444; color:#71767B; border-radius:6px; padding:8px 12px; font-size:12px; cursor:pointer; margin-top:4px; }
+    .hint { font-size:11px; color:#71767B; margin:4px 0 12px; }
   </style>
 </head>
 <body>
@@ -55,6 +66,32 @@
         </label>
       </div>
 
+      <div id="media-section">
+        <label>Mídia no carrossel</label>
+        <div class="media-modes">
+          <label class="opt active" data-value="none">
+            <input type="radio" name="media_mode" value="none" checked> Nenhuma
+          </label>
+          <label class="opt" data-value="auto">
+            <input type="radio" name="media_mode" value="auto"> Automática do artigo
+          </label>
+          <label class="opt" data-value="upload">
+            <input type="radio" name="media_mode" value="upload"> Fazer upload
+          </label>
+        </div>
+
+        <div id="upload-fields">
+          <label>Vídeo (opcional — vira o primeiro item do carrossel, .mp4)</label>
+          <input type="file" id="video-input" accept="video/mp4">
+          <p class="hint">Se enviar um vídeo, o texto do gancho vira o slide seguinte a ele, não é perdido.</p>
+
+          <label style="margin-top:14px;">Imagens por slide (opcional)</label>
+          <div id="image-rows"></div>
+          <button type="button" class="add-image" id="add-image-btn">+ Adicionar imagem</button>
+          <p class="hint">Escolha a imagem e o número do slide onde ela deve aparecer (embaixo do texto).</p>
+        </div>
+      </div>
+
       <button id="gerar">Gerar</button>
     </div>
 
@@ -62,12 +99,39 @@
   </div>
 
   <script>
-    const opts = document.querySelectorAll('.formats .opt');
-    opts.forEach(opt => {
-      opt.addEventListener('click', () => {
-        opts.forEach(o => o.classList.remove('active'));
-        opt.classList.add('active');
+    function setupToggle(selector, onChange) {
+      const opts = document.querySelectorAll(selector);
+      opts.forEach(opt => {
+        opt.addEventListener('click', () => {
+          opts.forEach(o => o.classList.remove('active'));
+          opt.classList.add('active');
+          if (onChange) onChange(opt.dataset.value);
+        });
       });
+    }
+
+    const mediaSection = document.getElementById('media-section');
+    setupToggle('.formats .opt', (value) => {
+      mediaSection.style.display = value === 'carrossel' ? 'block' : 'none';
+    });
+    mediaSection.style.display = document.querySelector('input[name=formato]:checked').value === 'carrossel' ? 'block' : 'none';
+
+    const uploadFields = document.getElementById('upload-fields');
+    setupToggle('.media-modes .opt', (value) => {
+      uploadFields.style.display = value === 'upload' ? 'block' : 'none';
+    });
+
+    const imageRows = document.getElementById('image-rows');
+    document.getElementById('add-image-btn').addEventListener('click', () => {
+      const row = document.createElement('div');
+      row.className = 'field-row';
+      row.innerHTML = `
+        <input type="file" accept="image/*" class="image-file">
+        <input type="number" min="1" max="15" placeholder="Slide nº" class="image-slide">
+        <button type="button" class="remove">×</button>
+      `;
+      row.querySelector('.remove').addEventListener('click', () => row.remove());
+      imageRows.appendChild(row);
     });
 
     const btn = document.getElementById('gerar');
@@ -78,16 +142,36 @@
       const formato = document.querySelector('input[name=formato]:checked').value;
       if (!url) { return; }
 
+      const formData = new FormData();
+      formData.append('url', url);
+      formData.append('formato', formato);
+
+      if (formato === 'carrossel') {
+        const mediaMode = document.querySelector('input[name=media_mode]:checked').value;
+        formData.append('media_mode', mediaMode);
+
+        if (mediaMode === 'upload') {
+          const videoInput = document.getElementById('video-input');
+          if (videoInput.files[0]) {
+            formData.append('video', videoInput.files[0]);
+          }
+          imageRows.querySelectorAll('.field-row').forEach(row => {
+            const file = row.querySelector('.image-file').files[0];
+            const slide = row.querySelector('.image-slide').value;
+            if (file && slide) {
+              formData.append('images', file);
+              formData.append('image_slides', slide);
+            }
+          });
+        }
+      }
+
       btn.disabled = true;
       btn.textContent = 'Gerando...';
       resultado.innerHTML = '<p class="loading">Gerando conteúdo, pode levar alguns segundos...</p>';
 
       try {
-        const resp = await fetch('/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, formato }),
-        });
+        const resp = await fetch('/generate', { method: 'POST', body: formData });
         const data = await resp.json();
 
         if (!data.ok) {
@@ -109,10 +193,14 @@
         } else {
           html += '<div class="slides">';
           data.slides.forEach(s => {
+            const ext = s.is_video ? 'mp4' : 'png';
+            const media = s.is_video
+              ? `<video src="${s.data_uri}" controls></video>`
+              : `<img src="${s.data_uri}" alt="Slide ${s.index}">`;
             html += `<figure>
-              <img src="${s.data_uri}" alt="Slide ${s.index}">
-              <figcaption>Slide ${s.index}</figcaption>
-              <a href="${s.data_uri}" download="slide_${String(s.index).padStart(2,'0')}.png">Baixar</a>
+              ${media}
+              <figcaption>${s.is_video ? 'Vídeo' : 'Slide'} ${s.index}</figcaption>
+              <a href="${s.data_uri}" download="slide_${String(s.index).padStart(2,'0')}.${ext}">Baixar</a>
             </figure>`;
           });
           html += '</div>';

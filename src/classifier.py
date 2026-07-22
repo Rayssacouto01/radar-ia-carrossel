@@ -155,7 +155,9 @@ def _generate_roteiro(item: NewsItem, client: anthropic.Anthropic) -> Optional[G
     )
 
 
-def _generate_carrossel(item: NewsItem, client: anthropic.Anthropic) -> Optional[GeneratedContent]:
+def _generate_carrossel(
+    item: NewsItem, client: anthropic.Anthropic, auto_image: bool = True
+) -> Optional[GeneratedContent]:
     data = _call_json(
         CARROSSEL_SYSTEM_PROMPT,
         f"Notícia para transformar em carrossel:\n\n{_news_context(item)}",
@@ -170,7 +172,7 @@ def _generate_carrossel(item: NewsItem, client: anthropic.Anthropic) -> Optional
 
     slides = slides + [random.choice(CTA_OPTIONS)]
 
-    if not item.image_path:
+    if auto_image and not item.image_path:
         item.image_path = fetch_article_image(item.url)
 
     return GeneratedContent(
@@ -213,4 +215,4 @@ def generate_manual(url: str, formato: ContentType, client: anthropic.Anthropic)
 
     if formato == "roteiro":
         return _generate_roteiro(item, client)
-    return _generate_carrossel(item, client)
+    return _generate_carrossel(item, client, auto_image=False)

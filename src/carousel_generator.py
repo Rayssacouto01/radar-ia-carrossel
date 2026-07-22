@@ -1,6 +1,7 @@
 """Gera carrosséis estilo tweet (X/Twitter) para Instagram, formato fixo @rayssacouto.ia."""
 
 import re
+import shutil
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from .classifier import GeneratedContent
@@ -188,26 +189,47 @@ def _safe_name(title: str) -> str:
     return safe.strip().replace(" ", "_")
 
 
-def generate_carousel(content: GeneratedContent, output_dir: str) -> list[str]:
-    """Renderiza os slides do carrossel (estilo tweet) como PNGs. Retorna a lista de caminhos."""
+def generate_carousel(
+    content: GeneratedContent,
+    output_dir: str,
+    image_map: dict[int, str] = None,
+    video_path: str = None,
+) -> list[str]:
+    """Renderiza os slides do carrossel (estilo tweet) como PNGs. Retorna a lista de caminhos.
+
+    image_map: {numero_do_slide: caminho_da_imagem} — imagem composta abaixo do texto
+    daquele slide. Se None, usa o comportamento automático (imagem de content.news.image_path
+    no slide 1, se existir) — mantém compatibilidade com o fluxo automático diário.
+
+    video_path: caminho de um .mp4 que vira o primeiro item do carrossel (sem overlay de
+    texto), empurrando os slides de texto pra depois dele na lista retornada.
+    """
     if content.format != "carrossel" or not content.carousel_slides:
         return []
 
-    avatar_img, avatar_mask = _load_avatar(AVATAR_SIZE)
+    if image_map is None:
+        image_map = {1: content.news.image_path} if content.news.image_path else {}
 
-    hook_image = None
-    if content.news.image_path and Path(content.news.image_path).exists():
-        hook_image = _prepare_rounded_image(content.news.image_path)
+    avatar_img, avatar_mask = _load_avatar(AVATAR_SIZE)
 
     safe = _safe_name(content.news.title)
     out_dir = Path(output_dir) / safe
     out_dir.mkdir(parents=True, exist_ok=True)
 
     paths = []
+
+    if video_path and Path(video_path).exists():
+        video_dest = out_dir / "video_01.mp4"
+        shutil.copy2(video_path, video_dest)
+        paths.append(str(video_dest))
+        print(f"[carousel] Vídeo adicionado como item 1: {video_dest.name}")
+
     total = len(content.carousel_slides)
     for i, text in enumerate(content.carousel_slides, start=1):
-        image_for_slide = hook_image if i == 1 else None
-        img = _render_slide(text, avatar_img, avatar_mask, image_below=image_for_slide)
+        image_path = image_map.get(i)
+        image_below = _prepare_rounded_image(image_path) if image_path and Path(image_path).exists() else None
+
+        img = _render_slide(text, avatar_img, avatar_mask, image_below=image_below)
         img = img.resize((CANVAS_W_LOGICAL, CANVAS_H_LOGICAL), Image.LANCZOS)
 
         path = out_dir / f"slide_{i:02d}.png"

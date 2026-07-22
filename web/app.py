@@ -20,6 +20,7 @@ import anthropic
 
 from src.carousel_generator import generate_carousel
 from src.classifier import generate_manual
+from src.scraper import fetch_article_image
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 WEBAPP_PASSWORD = os.getenv("WEBAPP_PASSWORD", "")
@@ -27,6 +28,7 @@ FLASK_SECRET_KEY = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+app.config["MAX_CONTENT_LENGTH"] = 60 * 1024 * 1024  # 60MB, cobre vídeos curtos
 
 _client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
@@ -72,9 +74,9 @@ def generate():
     if not _client:
         return jsonify(ok=False, error="ANTHROPIC_API_KEY não configurado no servidor."), 500
 
-    data = request.get_json(silent=True) or {}
-    url = (data.get("url") or "").strip()
-    formato = (data.get("formato") or "").strip()
+    url = (request.form.get("url") or "").strip()
+    formato = (request.form.get("formato") or "").strip()
+    media_mode = (request.form.get("media_mode") or "none").strip()
 
     if not url or formato not in ("roteiro", "carrossel"):
         return jsonify(ok=False, error="Informe um link e escolha o formato (roteiro ou carrossel)."), 400
@@ -99,16 +101,48 @@ def generate():
             },
         )
 
+    uploads_dir = tempfile.mkdtemp(prefix="uploads_")
     tmp_dir = tempfile.mkdtemp(prefix="carrossel_manual_")
     try:
-        paths = generate_carousel(content, tmp_dir)
+        image_map = {}
+        video_path = None
+
+        if media_mode == "auto":
+            content.news.image_path = fetch_article_image(url)
+
+        elif media_mode == "upload":
+            video_file = request.files.get("video")
+            if video_file and video_file.filename:
+                if not video_file.filename.lower().endswith(".mp4"):
+                    return jsonify(ok=False, error="O vídeo precisa ser um arquivo .mp4."), 400
+                video_path = os.path.join(uploads_dir, "video.mp4")
+                video_file.save(video_path)
+
+            image_files = request.files.getlist("images")
+            image_slides = request.form.getlist("image_slides")
+            for idx, img_file in enumerate(image_files):
+                if not img_file or not img_file.filename:
+                    continue
+                try:
+                    slide_no = int(image_slides[idx])
+                except (IndexError, ValueError):
+                    continue
+                ext = Path(img_file.filename).suffix or ".jpg"
+                saved_path = os.path.join(uploads_dir, f"image_{idx}{ext}")
+                img_file.save(saved_path)
+                image_map[slide_no] = saved_path
+
+        paths = generate_carousel(content, tmp_dir, image_map=image_map, video_path=video_path)
         slides = []
         for i, path in enumerate(paths, start=1):
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
-            slides.append({"index": i, "data_uri": f"data:image/png;base64,{b64}"})
+            is_video = path.lower().endswith(".mp4")
+            mime = "video/mp4" if is_video else "image/png"
+            slides.append({"index": i, "data_uri": f"data:{mime};base64,{b64}", "is_video": is_video})
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+        shutil.rmtree(uploads_dir, ignore_errors=True)
 
     return jsonify(ok=True, formato="carrossel", news=news, slides=slides)
 

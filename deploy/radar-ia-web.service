@@ -1,0 +1,14 @@
+[Unit]
+Description=Radar IA - interface web de geracao (roteiro/carrossel)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/radar-ia-carrossel
+EnvironmentFile=/opt/radar-ia-carrossel/.env
+ExecStart=/opt/radar-ia-carrossel/.venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 web.app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
