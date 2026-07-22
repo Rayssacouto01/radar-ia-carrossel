@@ -149,7 +149,9 @@ def generate():
 
         paths = generate_carousel(content, tmp_dir, image_map=image_map, video_path=video_path)
         slides = []
-        text_idx = 0
+        # Se o primeiro item é vídeo, o gancho (slides[0]) foi consumido nele — pula na hora
+        # de casar os textos com os PNGs restantes.
+        text_idx = 1 if paths and paths[0].lower().endswith(".mp4") else 0
         for i, path in enumerate(paths, start=1):
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()

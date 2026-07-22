@@ -3,9 +3,13 @@
 import io
 import re
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from .classifier import GeneratedContent
+
+MAX_VIDEO_DURATION_SECONDS = 180  # 3 minutos, mesmo limite usado na extração/download de vídeo
 
 
 def _clean_text(text: str) -> str:
@@ -204,52 +208,162 @@ def render_slide_png(text: str) -> bytes:
     return buf.getvalue()
 
 
+def _render_slide1_video_overlay(hook_text: str) -> tuple[bytes, tuple[int, int, int, int]]:
+    """Gera o PNG do slide 1 (cabeçalho + gancho) com um buraco transparente arredondado
+    no lugar da imagem, pra o vídeo aparecer por trás quando composto via ffmpeg.
+
+    Retorna (bytes_png_rgba, (box_x, box_y, box_w, box_h)) já em pixels finais (1080x1350).
+    """
+    avatar_img, avatar_mask = _load_avatar(AVATAR_SIZE)
+
+    img = Image.new("RGBA", (W, H), (*BG_COLOR, 255))
+    draw = ImageDraw.Draw(img)
+
+    font_name = _font(NAME_SIZE, bold=True)
+    font_handle = _font(HANDLE_SIZE)
+    font_text = _font(TEXT_SIZE)
+
+    wrapped_lines = _wrap_text(_clean_text(hook_text), font_text, CONTENT_W, draw)
+    text_height = len(wrapped_lines) * LINE_HEIGHT
+
+    header_height = AVATAR_SIZE
+    box_w, box_h = IMAGE_MAX_W, IMAGE_MAX_H
+    total_block_height = header_height + HEADER_TEXT_GAP + text_height + HEADER_TEXT_GAP + box_h
+    start_y = (H - total_block_height) // 2
+
+    img.paste(avatar_img, (MARGIN_X, start_y), avatar_mask)
+
+    name_x = MARGIN_X + AVATAR_SIZE + 20 * SCALE
+    draw.text((name_x, start_y + 10 * SCALE), DISPLAY_NAME, font=font_name, fill=TEXT_COLOR)
+    name_w = draw.textlength(DISPLAY_NAME, font=font_name)
+    _draw_verified_badge(draw, int(name_x + name_w + 10 * SCALE), start_y + 18 * SCALE, BADGE_SIZE, VERIFIED_COLOR)
+    draw.text((name_x, start_y + 50 * SCALE), HANDLE, font=font_handle, fill=HANDLE_COLOR)
+
+    text_y = start_y + header_height + HEADER_TEXT_GAP
+    for line in wrapped_lines:
+        draw.text((MARGIN_X, text_y), line, font=font_text, fill=TEXT_COLOR)
+        text_y += LINE_HEIGHT
+
+    box_x = (W - box_w) // 2
+    box_y = text_y + HEADER_TEXT_GAP
+
+    # Corta um buraco arredondado e transparente onde o vídeo vai aparecer
+    hole_mask = Image.new("L", (box_w, box_h), 255)
+    ImageDraw.Draw(hole_mask).rounded_rectangle([(0, 0), (box_w, box_h)], radius=IMAGE_RADIUS, fill=0)
+    alpha = img.split()[3]
+    alpha.paste(hole_mask, (box_x, box_y))
+    img.putalpha(alpha)
+
+    img = img.resize((CANVAS_W_LOGICAL, CANVAS_H_LOGICAL), Image.LANCZOS)
+    ratio = CANVAS_W_LOGICAL / W
+    final_box = (round(box_x * ratio), round(box_y * ratio), round(box_w * ratio), round(box_h * ratio))
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue(), final_box
+
+
+def _compose_video_slide(video_path: str, hook_text: str) -> tuple[str, str]:
+    """Compõe o slide 1 como vídeo: cabeçalho + gancho fixos por cima, vídeo tocando na área
+    de mídia (mesmo lugar/tamanho onde uma imagem apareceria). Retorna (caminho_mp4, erro).
+    """
+    try:
+        overlay_bytes, (box_x, box_y, box_w, box_h) = _render_slide1_video_overlay(hook_text)
+
+        tmp_dir = tempfile.mkdtemp(prefix="video_slide_")
+        overlay_path = Path(tmp_dir) / "overlay.png"
+        overlay_path.write_bytes(overlay_bytes)
+        output_path = Path(tmp_dir) / "composed.mp4"
+
+        filter_complex = (
+            f"[0:v]scale={box_w}:{box_h}:force_original_aspect_ratio=increase,"
+            f"crop={box_w}:{box_h},pad=1080:1350:{box_x}:{box_y}:color=black[bgvid];"
+            f"[bgvid][1:v]overlay=0:0:format=auto[outv]"
+        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-loop", "1", "-i", str(overlay_path),
+            "-filter_complex", filter_complex,
+            "-map", "[outv]", "-map", "0:a?",
+            "-c:v", "libx264", "-c:a", "aac",
+            "-t", str(MAX_VIDEO_DURATION_SECONDS),
+            "-shortest",
+            "-movflags", "+faststart",
+            "-pix_fmt", "yuv420p",
+            str(output_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        if result.returncode != 0 or not output_path.exists():
+            return "", f"ffmpeg falhou ao compor o slide com vídeo: {result.stderr[-500:]}"
+
+        return str(output_path), ""
+    except Exception as e:
+        return "", f"Não foi possível compor o slide com vídeo: {e}"
+
+
 def generate_carousel(
     content: GeneratedContent,
     output_dir: str,
     image_map: dict[int, str] = None,
     video_path: str = None,
 ) -> list[str]:
-    """Renderiza os slides do carrossel (estilo tweet) como PNGs. Retorna a lista de caminhos.
+    """Renderiza os slides do carrossel (estilo tweet). Retorna a lista de caminhos (PNGs e,
+    se houver vídeo, um .mp4 como primeiro item).
 
-    image_map: {numero_do_slide: caminho_da_imagem} — imagem composta abaixo do texto
-    daquele slide. Se None, usa o comportamento automático (imagem de content.news.image_path
-    no slide 1, se existir) — mantém compatibilidade com o fluxo automático diário.
+    image_map: {numero_do_slide: caminho_da_imagem} — imagem composta abaixo do texto daquele
+    slide (numeração conforme a lista original de slides, antes de qualquer vídeo consumir o
+    gancho). Se None, usa o comportamento automático (imagem de content.news.image_path no
+    slide 1, se existir) — mantém compatibilidade com o fluxo automático diário.
 
-    video_path: caminho de um .mp4 que vira o primeiro item do carrossel (sem overlay de
-    texto), empurrando os slides de texto pra depois dele na lista retornada.
+    video_path: caminho de um vídeo (.mp4) a compor no slide 1 — o cabeçalho e o texto do
+    gancho ficam fixos por cima, o vídeo toca na área de mídia (mesmo lugar de uma imagem).
+    O gancho não é renderizado de novo como slide de texto separado, já que fica embutido no
+    vídeo.
     """
     if content.format != "carrossel" or not content.carousel_slides:
         return []
+
+    safe = _safe_name(content.news.title)
+    out_dir = Path(output_dir) / safe
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    text_slides = list(content.carousel_slides)
+    slide_number_offset = 0
+    paths = []
+
+    if video_path and Path(video_path).exists():
+        hook_text = text_slides.pop(0) if text_slides else ""
+        composed_path, error = _compose_video_slide(video_path, hook_text)
+        if error:
+            print(f"[carousel] {error}")
+        else:
+            dest = out_dir / "slide_01.mp4"
+            shutil.copy2(composed_path, dest)
+            shutil.rmtree(Path(composed_path).parent, ignore_errors=True)
+            paths.append(str(dest))
+            slide_number_offset = 1
+            print(f"[carousel] Slide 1 composto com vídeo: {dest.name}")
 
     if image_map is None:
         image_map = {1: content.news.image_path} if content.news.image_path else {}
 
     avatar_img, avatar_mask = _load_avatar(AVATAR_SIZE)
 
-    safe = _safe_name(content.news.title)
-    out_dir = Path(output_dir) / safe
-    out_dir.mkdir(parents=True, exist_ok=True)
+    total = len(text_slides)
+    for offset, text in enumerate(text_slides):
+        original_slide_number = offset + 1 + slide_number_offset
+        output_num = offset + 1 + slide_number_offset
 
-    paths = []
-
-    if video_path and Path(video_path).exists():
-        video_dest = out_dir / "video_01.mp4"
-        shutil.copy2(video_path, video_dest)
-        paths.append(str(video_dest))
-        print(f"[carousel] Vídeo adicionado como item 1: {video_dest.name}")
-
-    total = len(content.carousel_slides)
-    for i, text in enumerate(content.carousel_slides, start=1):
-        image_path = image_map.get(i)
+        image_path = image_map.get(original_slide_number)
         image_below = _prepare_rounded_image(image_path) if image_path and Path(image_path).exists() else None
 
         img = _render_slide(text, avatar_img, avatar_mask, image_below=image_below)
         img = img.resize((CANVAS_W_LOGICAL, CANVAS_H_LOGICAL), Image.LANCZOS)
 
-        path = out_dir / f"slide_{i:02d}.png"
+        path = out_dir / f"slide_{output_num:02d}.png"
         img.save(str(path), "PNG", optimize=True)
         paths.append(str(path))
-        print(f"[carousel] Slide {i}/{total}: {path.name}")
+        print(f"[carousel] Slide {output_num}/{total + slide_number_offset}: {path.name}")
 
     return paths
