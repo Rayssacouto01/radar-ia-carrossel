@@ -81,9 +81,11 @@
         </div>
 
         <div id="upload-fields">
-          <label>Vídeo (opcional — vira o primeiro item do carrossel, .mp4)</label>
+          <label>Vídeo (opcional — vira o primeiro item do carrossel)</label>
           <input type="file" id="video-input" accept="video/mp4">
-          <p class="hint">Se enviar um vídeo, o texto do gancho vira o slide seguinte a ele, não é perdido.</p>
+          <p class="hint" style="margin:8px 0;">ou</p>
+          <input type="url" id="youtube-input" placeholder="Link do YouTube (extraído automaticamente)">
+          <p class="hint">Se enviar um vídeo (arquivo ou link), o texto do gancho vira o slide seguinte a ele, não é perdido. Vídeos de até 3 minutos.</p>
 
           <label style="margin-top:14px;">Imagens por slide (opcional)</label>
           <div id="image-rows"></div>
@@ -121,6 +123,15 @@
       uploadFields.style.display = value === 'upload' ? 'block' : 'none';
     });
 
+    const videoInputEl = document.getElementById('video-input');
+    const youtubeInputEl = document.getElementById('youtube-input');
+    videoInputEl.addEventListener('change', () => {
+      youtubeInputEl.disabled = !!videoInputEl.files[0];
+    });
+    youtubeInputEl.addEventListener('input', () => {
+      videoInputEl.disabled = youtubeInputEl.value.trim().length > 0;
+    });
+
     const imageRows = document.getElementById('image-rows');
     document.getElementById('add-image-btn').addEventListener('click', () => {
       const row = document.createElement('div');
@@ -151,8 +162,11 @@
         formData.append('media_mode', mediaMode);
 
         if (mediaMode === 'upload') {
+          const youtubeUrl = document.getElementById('youtube-input').value.trim();
           const videoInput = document.getElementById('video-input');
-          if (videoInput.files[0]) {
+          if (youtubeUrl) {
+            formData.append('youtube_url', youtubeUrl);
+          } else if (videoInput.files[0]) {
             formData.append('video', videoInput.files[0]);
           }
           imageRows.querySelectorAll('.field-row').forEach(row => {

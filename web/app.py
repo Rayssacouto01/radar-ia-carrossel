@@ -21,6 +21,7 @@ import anthropic
 from src.carousel_generator import generate_carousel
 from src.classifier import generate_manual
 from src.scraper import fetch_article_image
+from src.video_downloader import download_video
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 WEBAPP_PASSWORD = os.getenv("WEBAPP_PASSWORD", "")
@@ -103,6 +104,7 @@ def generate():
 
     uploads_dir = tempfile.mkdtemp(prefix="uploads_")
     tmp_dir = tempfile.mkdtemp(prefix="carrossel_manual_")
+    downloaded_video_dir = None
     try:
         image_map = {}
         video_path = None
@@ -111,8 +113,15 @@ def generate():
             content.news.image_path = fetch_article_image(url)
 
         elif media_mode == "upload":
+            youtube_url = (request.form.get("youtube_url") or "").strip()
             video_file = request.files.get("video")
-            if video_file and video_file.filename:
+
+            if youtube_url:
+                video_path, error = download_video(youtube_url)
+                if error:
+                    return jsonify(ok=False, error=error), 400
+                downloaded_video_dir = str(Path(video_path).parent)
+            elif video_file and video_file.filename:
                 if not video_file.filename.lower().endswith(".mp4"):
                     return jsonify(ok=False, error="O vídeo precisa ser um arquivo .mp4."), 400
                 video_path = os.path.join(uploads_dir, "video.mp4")
@@ -143,6 +152,8 @@ def generate():
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         shutil.rmtree(uploads_dir, ignore_errors=True)
+        if downloaded_video_dir:
+            shutil.rmtree(downloaded_video_dir, ignore_errors=True)
 
     return jsonify(ok=True, formato="carrossel", news=news, slides=slides)
 
