@@ -78,11 +78,14 @@ def generate():
     url = (request.form.get("url") or "").strip()
     formato = (request.form.get("formato") or "").strip()
     media_mode = (request.form.get("media_mode") or "none").strip()
+    estilo = (request.form.get("estilo") or "tweet").strip()
+    if estilo not in ("tweet", "ensino"):
+        estilo = "tweet"
 
     if not url or formato not in ("roteiro", "carrossel"):
         return jsonify(ok=False, error="Informe um link e escolha o formato (roteiro ou carrossel)."), 400
 
-    content = generate_manual(url, formato, _client)
+    content = generate_manual(url, formato, _client, estilo=estilo)
     if not content:
         return jsonify(ok=False, error="Não foi possível gerar o conteúdo a partir desse link."), 502
 

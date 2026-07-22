@@ -81,6 +81,42 @@ Responda APENAS com um JSON válido: {"slides": ["texto do slide 1 (hook)", "tex
 Gere entre 5 e 9 slides de conteúdo (o sistema soma 1 slide de CTA no final, totalizando 6 a 10 slides)."""
 
 
+CARROSSEL_ENSINO_SYSTEM_PROMPT = """Você gera o texto de carrosséis de ENSINO para Instagram no formato visual de tweet (estilo X/Twitter), para o perfil @rayssacouto.ia.
+
+Este carrossel ensina a pessoa a fazer algo prático com IA, relacionado a uma notícia ou novidade. No final, ela precisa conseguir começar a usar aquilo na hora — nada de conceito abstrato, é sempre uma ação concreta.
+
+Regras de copy (invioláveis):
+- Português do Brasil, coloquial, direto. Nunca tradução literal do inglês.
+- Frases curtas: no máximo 12 palavras por frase.
+- NUNCA use travessão (— – ─). No lugar dele, escolha o que soar mais natural e gramaticalmente
+  correto em português: vírgula, dois-pontos, ponto final, ou reescreva como duas frases completas.
+- NUNCA quebre uma frase no meio com uma quebra de linha. Cada quebra de linha dentro do texto de
+  um slide só pode acontecer no fim de uma frase completa e pontuada. A quebra visual pro tamanho
+  do slide é feita automaticamente por quem renderiza, você não precisa (nem deve) quebrar.
+- Sem emoji no corpo do texto.
+- Sem hashtag no meio do texto.
+
+Estrutura obrigatória:
+- Slide 1 (GANHO): comece com "Vou te ensinar a [resultado prático e concreto]." O resultado tem
+  que estar relacionado à notícia recebida e ser algo que a pessoa aplique sozinha, hoje, com IA.
+  Ex: "Vou te ensinar a responder clientes no automático usando o novo recurso do ChatGPT."
+- Slide 2 (CONTEXTO): 1-2 frases explicando o que mudou ou surgiu (a notícia) e por que isso
+  importa pro dia a dia de quem tem um negócio.
+- Slides seguintes (PASSO A PASSO): comece cada um com "Passo 1:", "Passo 2:", "Passo 3:" etc.
+  Cada passo é uma instrução clara e simples, que a pessoa consiga seguir sem ajuda técnica.
+  Use de 3 a 5 passos.
+- Penúltimo slide (RESULTADO): o que a pessoa ganha ao final, de forma tangível e concreta.
+  Ex: "Pronto: agora seu negócio responde clientes 24 horas, sem você precisar estar online."
+
+Não gere um slide de CTA/fechamento — isso é adicionado automaticamente pelo sistema depois do seu último slide.
+
+Responda APENAS com um JSON válido: {"slides": ["slide 1 (ganho)", "slide 2 (contexto)", "passo 1", "...", "resultado"]}
+
+Gere entre 6 e 8 slides de conteúdo (o sistema soma 1 slide de CTA no final, totalizando 7 a 9 slides)."""
+
+CopyStyle = Literal["tweet", "ensino"]
+
+
 @dataclass
 class GeneratedContent:
     news: NewsItem
@@ -163,10 +199,14 @@ def _generate_roteiro(item: NewsItem, client: anthropic.Anthropic) -> Optional[G
 
 
 def _generate_carrossel(
-    item: NewsItem, client: anthropic.Anthropic, auto_image: bool = True
+    item: NewsItem,
+    client: anthropic.Anthropic,
+    auto_image: bool = True,
+    estilo: CopyStyle = "tweet",
 ) -> Optional[GeneratedContent]:
+    system_prompt = CARROSSEL_ENSINO_SYSTEM_PROMPT if estilo == "ensino" else CARROSSEL_SYSTEM_PROMPT
     data = _call_json(
-        CARROSSEL_SYSTEM_PROMPT,
+        system_prompt,
         f"Notícia para transformar em carrossel:\n\n{_news_context(item)}",
         client,
     )
@@ -202,10 +242,16 @@ def classify_and_generate(
     return results
 
 
-def generate_manual(url: str, formato: ContentType, client: anthropic.Anthropic) -> Optional[GeneratedContent]:
+def generate_manual(
+    url: str,
+    formato: ContentType,
+    client: anthropic.Anthropic,
+    estilo: CopyStyle = "tweet",
+) -> Optional[GeneratedContent]:
     """Gera conteúdo a partir de um link avulso, pulando a classificação automática.
 
-    Usado pela interface web, onde o formato já vem escolhido pelo usuário.
+    Usado pela interface web, onde o formato (e, no caso de carrossel, o estilo de copy)
+    já vem escolhido pelo usuário.
     """
     title = fetch_article_title(url) or url
     full_text = fetch_article_text(url)
@@ -222,4 +268,4 @@ def generate_manual(url: str, formato: ContentType, client: anthropic.Anthropic)
 
     if formato == "roteiro":
         return _generate_roteiro(item, client)
-    return _generate_carrossel(item, client, auto_image=False)
+    return _generate_carrossel(item, client, auto_image=False, estilo=estilo)

@@ -72,8 +72,19 @@
       </div>
 
       <div id="media-section">
-        <label>Mídia no carrossel</label>
-        <div class="media-modes">
+        <label>Estilo da copy</label>
+        <div class="media-modes" id="estilo-toggle">
+          <label class="opt active" data-value="tweet">
+            <input type="radio" name="estilo" value="tweet" checked> Tweet (AIDA, provocativo)
+          </label>
+          <label class="opt" data-value="ensino">
+            <input type="radio" name="estilo" value="ensino"> Ensino (passo a passo)
+          </label>
+        </div>
+        <p class="hint">"Ensino" abre com "Vou te ensinar a..." e estrutura o carrossel em passos práticos pra pessoa já sair usando.</p>
+
+        <label style="margin-top:14px;">Mídia no carrossel</label>
+        <div class="media-modes" id="media-mode-toggle">
           <label class="opt active" data-value="none">
             <input type="radio" name="media_mode" value="none" checked> Nenhuma
           </label>
@@ -127,8 +138,10 @@
     });
     mediaSection.style.display = document.querySelector('input[name=formato]:checked').value === 'carrossel' ? 'block' : 'none';
 
+    setupToggle('#estilo-toggle .opt');
+
     const uploadFields = document.getElementById('upload-fields');
-    setupToggle('.media-modes .opt', (value) => {
+    setupToggle('#media-mode-toggle .opt', (value) => {
       uploadFields.style.display = value === 'upload' ? 'block' : 'none';
     });
 
@@ -167,6 +180,9 @@
       formData.append('formato', formato);
 
       if (formato === 'carrossel') {
+        const estilo = document.querySelector('input[name=estilo]:checked').value;
+        formData.append('estilo', estilo);
+
         const mediaMode = document.querySelector('input[name=media_mode]:checked').value;
         formData.append('media_mode', mediaMode);
 
