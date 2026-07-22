@@ -191,6 +191,15 @@
     .news-meta a { color: oklch(85% 0.01 60); text-decoration: none; border-bottom: 1px solid oklch(50% 0.01 60); }
     .news-meta span { color: var(--text-faint); }
 
+    .zip-btn {
+      margin-top: 16px; padding: 12px 20px; border: 1px solid var(--border); border-radius: 12px;
+      background: var(--glass-light); backdrop-filter: blur(10px); color: var(--text);
+      font-family: 'Manrope', sans-serif; font-weight: 700; font-size: 13.5px; cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .zip-btn:hover:not(:disabled) { background: oklch(95% 0.01 60 / 0.1); border-color: oklch(95% 0.01 60 / 0.22); }
+    .zip-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
     .slides {
       display: flex; gap: 20px; margin-top: 20px; overflow-x: auto; padding: 4px 4px 12px;
     }
@@ -384,6 +393,37 @@
 
     const btn = document.getElementById('gerar');
     const resultado = document.getElementById('resultado');
+    let currentSlides = [];
+
+    async function baixarZip() {
+      const zipBtn = document.getElementById('download-zip-btn');
+      const files = currentSlides.map(s => ({
+        filename: `slide_${String(s.index).padStart(2, '0')}.${s.is_video ? 'mp4' : 'png'}`,
+        data_uri: s.data_uri,
+      }));
+      zipBtn.disabled = true;
+      zipBtn.textContent = 'Preparando .zip...';
+      try {
+        const resp = await fetch('/download-zip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files }),
+        });
+        if (!resp.ok) { alert('Erro ao gerar o .zip.'); return; }
+        const blob = await resp.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'carrossel.zip';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } catch (e) {
+        alert('Erro de conexão. Tenta de novo.');
+      } finally {
+        zipBtn.disabled = false;
+        zipBtn.textContent = '⬇ Baixar tudo (.zip)';
+      }
+    }
 
     btn.addEventListener('click', async () => {
       const url = document.getElementById('url').value.trim();
@@ -446,6 +486,10 @@
             + (r.notas_gravacao ? `<b>Notas de gravação:</b> ${r.notas_gravacao}` : '')
             + `</div>`;
         } else {
+          currentSlides = data.slides;
+
+          html += `<button type="button" id="download-zip-btn" class="zip-btn">⬇ Baixar tudo (.zip)</button>`;
+
           html += '<div class="slides">';
           data.slides.forEach(s => {
             const ext = s.is_video ? 'mp4' : 'png';
@@ -470,6 +514,9 @@
 
         resultado.innerHTML = html;
 
+        const zipBtn = document.getElementById('download-zip-btn');
+        if (zipBtn) { zipBtn.addEventListener('click', baixarZip); }
+
         const updateBtn = document.getElementById('update-last-btn');
         if (updateBtn) {
           updateBtn.addEventListener('click', async () => {
@@ -487,6 +534,8 @@
               const fig = document.getElementById(`slide-fig-${idx}`);
               fig.querySelector('img').src = d.data_uri;
               fig.querySelector('a.baixar').href = d.data_uri;
+              const slideEntry = currentSlides.find(s => s.index == idx);
+              if (slideEntry) { slideEntry.data_uri = d.data_uri; }
             } catch (e) {
               alert('Erro de conexão. Tenta de novo.');
             } finally {

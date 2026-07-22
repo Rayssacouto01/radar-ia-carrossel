@@ -1,16 +1,18 @@
 """Interface web para gerar roteiro ou carrossel a partir de um link, sob demanda."""
 
 import base64
+import io
 import os
 import secrets
 import shutil
 import sys
 import tempfile
+import zipfile
 from functools import wraps
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -187,6 +189,28 @@ def render_slide():
     png_bytes = render_slide_png(text)
     b64 = base64.b64encode(png_bytes).decode()
     return jsonify(ok=True, data_uri=f"data:image/png;base64,{b64}", text=text)
+
+
+@app.route("/download-zip", methods=["POST"])
+@login_required
+def download_zip():
+    data = request.get_json(silent=True) or {}
+    files = data.get("files", [])
+    if not files:
+        return jsonify(ok=False, error="Nenhum arquivo para baixar."), 400
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            filename = f.get("filename")
+            data_uri = f.get("data_uri", "")
+            if not filename or "," not in data_uri:
+                continue
+            _, b64data = data_uri.split(",", 1)
+            zf.writestr(filename, base64.b64decode(b64data))
+    buf.seek(0)
+
+    return send_file(buf, mimetype="application/zip", as_attachment=True, download_name="carrossel.zip")
 
 
 if __name__ == "__main__":
