@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/radar-ia-carrossel
 EnvironmentFile=/opt/radar-ia-carrossel/.env
-ExecStart=/opt/radar-ia-carrossel/.venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 web.app:app
+ExecStart=/opt/radar-ia-carrossel/.venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 --timeout 300 web.app:app
 Restart=always
 RestartSec=5
 
