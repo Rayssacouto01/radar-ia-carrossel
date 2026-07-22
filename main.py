@@ -30,7 +30,7 @@ def run():
 
     from src.scraper import fetch_all_news
     from src.classifier import classify_and_generate
-    from src.carousel_generator import generate_carousel, generate_cover
+    from src.carousel_generator import generate_carousel
     from src.report_saver import save_report
     from src.whatsapp_sender import send_report
 
@@ -56,10 +56,7 @@ def run():
     print("[main] Gerando slides de carrossel...")
     contents_with_paths: list[tuple] = []
     for c in contents:
-        if c.format == "carrossel":
-            paths = generate_carousel(c, str(OUTPUT_DIR))
-        else:
-            paths = generate_cover(c, str(OUTPUT_DIR))
+        paths = generate_carousel(c, str(OUTPUT_DIR)) if c.format == "carrossel" else []
         contents_with_paths.append((c, paths))
 
     print("[main] Salvando relatório HTML...")

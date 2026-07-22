@@ -5,28 +5,25 @@ import base64
 from pathlib import Path
 from .classifier import GeneratedContent
 
-CANVA_TEMPLATE_URL = "https://canva.link/fnzktb37e7v68a6"
-
 FORMAT_LABEL = {
-    "reels": "🎬 REELS",
+    "roteiro": "🎬 ROTEIRO",
     "carrossel": "📸 CARROSSEL",
-    "post_estatico": "🖼️ POST ESTÁTICO",
 }
 
 
-def _format_slides(slides: list[dict]) -> str:
-    parts = []
-    for s in slides:
-        num = s.get("numero", "")
-        tipo = s.get("tipo", "conteudo").upper()
-        emoji = s.get("emoji", "")
-        titulo = s.get("titulo", "")
-        corpo = s.get("corpo", "") or s.get("subtitulo", "")
-        block = f"*SLIDE {num} — {tipo}*\n{emoji} {titulo}"
-        if corpo:
-            block += f"\n_{corpo}_"
-        parts.append(block)
-    return "\n\n".join(parts)
+def _format_roteiro(content: GeneratedContent) -> str:
+    lines = [
+        f"⏱ Duração: {content.roteiro_duracao}",
+        "",
+        f"*Gancho:* {content.roteiro_gancho}",
+        "",
+        f"*Desenvolvimento:* {content.roteiro_desenvolvimento}",
+        "",
+        f"*CTA:* {content.roteiro_cta}",
+    ]
+    if content.roteiro_notas_gravacao:
+        lines += ["", f"_Notas de gravação: {content.roteiro_notas_gravacao}_"]
+    return "\n".join(lines)
 
 
 def _build_message(content: GeneratedContent) -> str:
@@ -43,30 +40,13 @@ def _build_message(content: GeneratedContent) -> str:
         f"🔗 {news.url}",
         "",
         f"💡 *Gancho:*\n{content.hook}",
-        "",
-        f"🏢 *Para o seu negócio:*\n{content.business_application}",
     ]
 
-    if content.format == "reels" and content.reels_script:
-        lines += ["", "🎬 *Roteiro para gravação:*", content.reels_script]
+    if content.format == "roteiro":
+        lines += ["", "🎬 *Roteiro para gravação:*", _format_roteiro(content)]
 
     elif content.format == "carrossel" and content.carousel_slides:
-        lines += [
-            "",
-            f"📋 *Slides ({len(content.carousel_slides)}):*",
-            "",
-            _format_slides(content.carousel_slides),
-        ]
-        if content.static_caption:
-            lines += ["", f"📝 *Legenda:*\n{content.static_caption}"]
-        lines += ["", f"🎨 Template Canva: {CANVA_TEMPLATE_URL}"]
-
-    elif content.format == "post_estatico":
-        if content.static_caption:
-            lines += ["", f"📝 *Legenda:*\n{content.static_caption}"]
-        if content.static_image_concept:
-            lines += ["", f"🖼️ *Conceito visual:*\n{content.static_image_concept}"]
-        lines += ["", f"🎨 Template Canva: {CANVA_TEMPLATE_URL}"]
+        lines += ["", f"📋 {len(content.carousel_slides)} slides gerados (enviados a seguir como imagens):"]
 
     lines += ["", "—", "_@rayssacouto.ia_"]
     return "\n".join(lines)

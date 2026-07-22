@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Radar IA — Gerador</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; background:#0A0A0A; color:#E7E9EA; font-family:Arial,sans-serif; }
+    .wrap { max-width:720px; margin:0 auto; padding:32px 20px 80px; }
+    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+    header h1 { font-size:20px; margin:0; }
+    header a { color:#71767B; font-size:13px; text-decoration:none; }
+    .card { background:#161616; border:1px solid #262626; border-radius:12px; padding:24px; }
+    label { display:block; font-size:12px; font-weight:700; color:#71767B; text-transform:uppercase; margin-bottom:6px; }
+    input[type=url] { width:100%; padding:12px 14px; border-radius:8px; border:1px solid #333; background:#0A0A0A; color:#fff; font-size:14px; }
+    .formats { display:flex; gap:10px; margin:16px 0; }
+    .formats label.opt { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:8px; border:1px solid #333; cursor:pointer; text-transform:none; font-weight:600; color:#E7E9EA; }
+    .formats input[type=radio] { accent-color:#FF5722; }
+    .formats label.opt.active { border-color:#FF5722; background:rgba(255,87,34,0.08); }
+    button#gerar { width:100%; padding:14px; border:none; border-radius:8px; background:#FF5722; color:#fff; font-weight:700; font-size:15px; cursor:pointer; margin-top:8px; }
+    button#gerar:disabled { opacity:0.5; cursor:not-allowed; }
+    button#gerar:hover:not(:disabled) { background:#e64a19; }
+    #resultado { margin-top:28px; }
+    .erro { color:#FC8181; background:#2D1414; border:1px solid #5c2323; padding:12px 16px; border-radius:8px; font-size:14px; }
+    .roteiro-box { background:#0A0A0A; border:1px solid #262626; border-radius:8px; padding:20px; white-space:pre-wrap; line-height:1.6; font-size:14px; }
+    .roteiro-box b { color:#FF5722; }
+    .slides { display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; }
+    .slides figure { margin:0; flex:0 0 auto; text-align:center; }
+    .slides img { width:200px; border-radius:10px; box-shadow:0 4px 16px rgba(0,0,0,0.5); display:block; }
+    .slides figcaption { font-size:12px; color:#71767B; margin-top:6px; }
+    .slides a { font-size:11px; color:#FF5722; text-decoration:none; }
+    .loading { color:#71767B; font-size:14px; }
+    .news-meta { font-size:12px; color:#71767B; margin-bottom:16px; }
+    .news-meta a { color:#71767B; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🤖 Radar IA — Gerador</h1>
+      <a href="/logout">Sair</a>
+    </header>
+
+    <div class="card">
+      <label for="url">Link do artigo/notícia</label>
+      <input type="url" id="url" placeholder="https://..." required>
+
+      <div class="formats">
+        <label class="opt active" data-value="carrossel">
+          <input type="radio" name="formato" value="carrossel" checked> 📸 Carrossel
+        </label>
+        <label class="opt" data-value="roteiro">
+          <input type="radio" name="formato" value="roteiro"> 🎬 Roteiro
+        </label>
+      </div>
+
+      <button id="gerar">Gerar</button>
+    </div>
+
+    <div id="resultado"></div>
+  </div>
+
+  <script>
+    const opts = document.querySelectorAll('.formats .opt');
+    opts.forEach(opt => {
+      opt.addEventListener('click', () => {
+        opts.forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+      });
+    });
+
+    const btn = document.getElementById('gerar');
+    const resultado = document.getElementById('resultado');
+
+    btn.addEventListener('click', async () => {
+      const url = document.getElementById('url').value.trim();
+      const formato = document.querySelector('input[name=formato]:checked').value;
+      if (!url) { return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Gerando...';
+      resultado.innerHTML = '<p class="loading">Gerando conteúdo, pode levar alguns segundos...</p>';
+
+      try {
+        const resp = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, formato }),
+        });
+        const data = await resp.json();
+
+        if (!data.ok) {
+          resultado.innerHTML = `<p class="erro">${data.error || 'Erro ao gerar conteúdo.'}</p>`;
+          return;
+        }
+
+        let html = `<p class="news-meta"><a href="${data.news.url}" target="_blank">${data.news.title}</a> — ${data.news.source}</p>`;
+
+        if (data.formato === 'roteiro') {
+          const r = data.roteiro;
+          html += `<div class="roteiro-box">`
+            + `<b>Duração:</b> ${r.duracao}\n\n`
+            + `<b>[GANCHO]</b>\n${r.gancho}\n\n`
+            + `<b>[DESENVOLVIMENTO]</b>\n${r.desenvolvimento}\n\n`
+            + `<b>[CTA]</b>\n${r.cta}\n\n`
+            + (r.notas_gravacao ? `<b>Notas de gravação:</b> ${r.notas_gravacao}` : '')
+            + `</div>`;
+        } else {
+          html += '<div class="slides">';
+          data.slides.forEach(s => {
+            html += `<figure>
+              <img src="${s.data_uri}" alt="Slide ${s.index}">
+              <figcaption>Slide ${s.index}</figcaption>
+              <a href="${s.data_uri}" download="slide_${String(s.index).padStart(2,'0')}.png">Baixar</a>
+            </figure>`;
+          });
+          html += '</div>';
+        }
+
+        resultado.innerHTML = html;
+      } catch (e) {
+        resultado.innerHTML = '<p class="erro">Erro de conexão. Tenta de novo.</p>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Gerar';
+      }
+    });
+  </script>
+</body>
+</html>

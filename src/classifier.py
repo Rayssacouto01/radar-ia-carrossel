@@ -1,61 +1,184 @@
-"""Usa Claude API para classificar notícias e gerar conteúdo por formato."""
+"""Usa Claude API para classificar notícias e gerar conteúdo fixo (roteiro ou carrossel)."""
 
-import os
 import json
-import anthropic
+import random
 from dataclasses import dataclass, field
 from typing import Literal, Optional
-from .scraper import NewsItem
+from urllib.parse import urlparse
 
-ContentType = Literal["reels", "carrossel"]
+import anthropic
 
-SYSTEM_PROMPT = """Você é um professor especialista em Inteligência Artificial que ensina empreendedores e donos de negócio brasileiros a usar IA no dia a dia das suas empresas.
+from .scraper import NewsItem, fetch_article_image, fetch_article_text, fetch_article_title
 
-Seu estilo é de professor paciente e didático:
-- Explica como se o aluno nunca tivesse ouvido falar do assunto
-- Usa analogias do cotidiano empresarial (ex: "é como ter um funcionário que...")
-- Sempre mostra O QUE É POSSÍVEL FAZER com aquela IA no negócio
-- Dá exemplos práticos e concretos de setores reais (restaurante, clínica, loja, agência, academia...)
-- Evita termos técnicos — quando precisar usar um, explica imediatamente
-- Linguagem leve, próxima, como uma conversa entre colegas
+ContentType = Literal["roteiro", "carrossel"]
 
-## Regras de classificação:
+MODEL = "claude-sonnet-4-6"
 
-**REELS** → Escolha quando a novidade:
-- É um lançamento bombástico ou breaking news
-- Tem potencial de viralizar (surpresa, "nossa, isso existe?!")
-- Pode ser demonstrada visualmente em 60-90 segundos
-- É uma ferramenta que o empreendedor pode testar hoje mesmo
+# ── CTAs fixos aprovados para o carrossel (sorteados em código, nunca gerados pelo modelo) ──
+CTA_OPTIONS = [
+    "Segue @rayssacouto.ia para saber mais sobre IA aplicada aos negocios",
+    "Segue @rayssacouto.ia e aprenda sobre ia todo dia",
+    "Segue @rayssacouto.ia e transforma seu negocio com IA, um post por dia.",
+    "Comenta APRENDER que eu te ensino a aplicar isso no seu negocio.",
+]
 
-**CARROSSEL** → Escolha quando a novidade:
-- Pode ser ensinada em passos (ex: "5 formas de usar isso no seu negócio")
-- Tem múltiplos casos de uso para setores diferentes
-- É ideal para salvar e consultar depois
-- Requer mais contexto para ser bem aproveitada
+CLASSIFY_SYSTEM_PROMPT = """Você decide se uma notícia de IA deve virar um ROTEIRO de vídeo curto ou um CARROSSEL de slides para Instagram.
+
+ROTEIRO → a notícia é um lançamento pontual e direto, que dá para explicar falando em frente à câmera em 60 segundos.
+CARROSSEL → a notícia comporta uma explicação em vários passos ou ideias, melhor lida em slides do que ouvida.
+
+Responda APENAS com um JSON válido: {"format": "roteiro" | "carrossel"}"""
 
 
-## Público-alvo:
-Donos de negócio e empreendedores brasileiros — podem ser de qualquer setor. Muitos nunca usaram IA antes. Seu papel é mostrar que é simples, acessível e já está transformando empresas como a deles.
+ROTEIRO_SYSTEM_PROMPT = """Você é o agente de roteiro. Dado um tema, entrega um roteiro completo pronto para gravar.
 
-## Formato dos exemplos práticos:
-Sempre que gerar conteúdo, inclua pelo menos 2 exemplos de setores diferentes, como:
-- "Uma clínica pode usar isso para..."
-- "Uma loja de roupas consegue..."
-- "Um escritório de advocacia pode..."
+Regras absolutas:
+- Responda sempre em português do Brasil.
+- O roteiro deve ser falado naturalmente, não lido como texto formal.
+- Estrutura obrigatória: gancho → desenvolvimento → CTA.
+- O gancho é a primeira frase. Sem introdução.
+- Nunca comece com "Hoje vou falar sobre..." ou frases parecidas.
+- Duração fixa: 60 segundos, aproximadamente 150 palavras no total (gancho + desenvolvimento + cta).
+- Tom: direto, confiante, sem enrolação.
 
-## Idioma: SEMPRE em português do Brasil."""
+Responda APENAS com um JSON válido seguindo este schema:
+{
+  "gancho": "a primeira frase do roteiro, direto ao ponto, sem introdução",
+  "desenvolvimento": "corpo do roteiro, explicando o tema de forma natural e direta, como se estivesse falando",
+  "cta": "chamada para ação final, curta",
+  "notas_gravacao": "1-2 frases de instrução de tom/performance para quem for gravar (como falar, onde pausar, onde dar ênfase)"
+}"""
+
+
+CARROSSEL_SYSTEM_PROMPT = """Você gera o texto de carrosséis para Instagram no formato visual de tweet (estilo X/Twitter), para o perfil @rayssacouto.ia.
+
+Regras de copy (invioláveis):
+- Português do Brasil, coloquial, direto. Nunca tradução literal do inglês.
+- Frases curtas: no máximo 12 palavras por frase.
+- NUNCA use travessão (— – ─). Use vírgula, ponto final ou quebra de linha no lugar.
+- Sem emoji no corpo do texto.
+- Sem hashtag no meio do texto.
+- Tom declarativo e opinativo. Não é tutorial passo a passo, é pensamento curto.
+- Hooks fortes contradizem expectativa ou provocam. Ex: "A maioria das pessoas quer X, mas evita Y."
+
+Estrutura AIDA obrigatória, distribuída nos slides que você gerar:
+- Primeiro slide = ATENÇÃO: hook que para o scroll.
+- 1-2 slides seguintes = INTERESSE: aprofunda o problema ou contexto.
+- Maioria dos slides = DESEJO: entrega o conteúdo central, a explicação real da notícia.
+- 1-2 últimos slides = REFORÇO: resume o aprendizado ou dá um exemplo concreto.
+
+Não gere um slide de CTA/fechamento — isso é adicionado automaticamente pelo sistema depois do seu último slide.
+
+Responda APENAS com um JSON válido: {"slides": ["texto do slide 1 (hook)", "texto do slide 2", "..."]}
+
+Gere entre 5 e 9 slides de conteúdo (o sistema soma 1 slide de CTA no final, totalizando 6 a 10 slides)."""
 
 
 @dataclass
 class GeneratedContent:
     news: NewsItem
     format: ContentType
-    reels_script: str = ""
-    carousel_slides: list[dict] = field(default_factory=list)
-    static_caption: str = ""
-    static_image_concept: str = ""
     hook: str = ""
-    business_application: str = ""
+
+    # roteiro
+    roteiro_gancho: str = ""
+    roteiro_desenvolvimento: str = ""
+    roteiro_cta: str = ""
+    roteiro_notas_gravacao: str = ""
+    roteiro_duracao: str = "60s"
+
+    # carrossel — já inclui o slide de CTA como último item
+    carousel_slides: list[str] = field(default_factory=list)
+
+
+def _call_json(system_prompt: str, user_message: str, client: anthropic.Anthropic) -> Optional[dict]:
+    try:
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=2048,
+            system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": user_message}],
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip().rstrip("```").strip()
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"[classifier] JSON inválido: {e}")
+        return None
+    except anthropic.APIError as e:
+        print(f"[classifier] Erro de API: {e}")
+        return None
+
+
+def _news_context(item: NewsItem) -> str:
+    return (
+        f"Título: {item.title}\n"
+        f"Fonte: {item.source}\n"
+        f"Resumo: {item.summary or item.full_text or 'Sem resumo disponível'}\n"
+        f"URL: {item.url}"
+    )
+
+
+def _classify_format(item: NewsItem, client: anthropic.Anthropic) -> ContentType:
+    data = _call_json(
+        CLASSIFY_SYSTEM_PROMPT,
+        f"Notícia:\n\n{_news_context(item)}",
+        client,
+    )
+    fmt = (data or {}).get("format", "carrossel")
+    return fmt if fmt in ("roteiro", "carrossel") else "carrossel"
+
+
+def _generate_roteiro(item: NewsItem, client: anthropic.Anthropic) -> Optional[GeneratedContent]:
+    data = _call_json(
+        ROTEIRO_SYSTEM_PROMPT,
+        f"Tema do roteiro (baseado nesta notícia de IA):\n\n{_news_context(item)}",
+        client,
+    )
+    if not data:
+        return None
+
+    gancho = data.get("gancho", "")
+    return GeneratedContent(
+        news=item,
+        format="roteiro",
+        hook=gancho,
+        roteiro_gancho=gancho,
+        roteiro_desenvolvimento=data.get("desenvolvimento", ""),
+        roteiro_cta=data.get("cta", ""),
+        roteiro_notas_gravacao=data.get("notas_gravacao", ""),
+        roteiro_duracao="60s",
+    )
+
+
+def _generate_carrossel(item: NewsItem, client: anthropic.Anthropic) -> Optional[GeneratedContent]:
+    data = _call_json(
+        CARROSSEL_SYSTEM_PROMPT,
+        f"Notícia para transformar em carrossel:\n\n{_news_context(item)}",
+        client,
+    )
+    if not data:
+        return None
+
+    slides = [s for s in data.get("slides", []) if s]
+    if not slides:
+        return None
+
+    slides = slides + [random.choice(CTA_OPTIONS)]
+
+    if not item.image_path:
+        item.image_path = fetch_article_image(item.url)
+
+    return GeneratedContent(
+        news=item,
+        format="carrossel",
+        hook=slides[0],
+        carousel_slides=slides,
+    )
 
 
 def classify_and_generate(
@@ -63,124 +186,31 @@ def classify_and_generate(
 ) -> list[GeneratedContent]:
     results = []
     for item in news_items:
-        content = _process_item(item, client)
+        fmt = _classify_format(item, client)
+        content = _generate_roteiro(item, client) if fmt == "roteiro" else _generate_carrossel(item, client)
         if content:
             results.append(content)
     return results
 
 
-def _process_item(item: NewsItem, client: anthropic.Anthropic) -> Optional[GeneratedContent]:
-    user_message = f"""Você é um professor que vai transformar esta novidade de IA em conteúdo educativo para donos de negócio brasileiros.
+def generate_manual(url: str, formato: ContentType, client: anthropic.Anthropic) -> Optional[GeneratedContent]:
+    """Gera conteúdo a partir de um link avulso, pulando a classificação automática.
 
-**Notícia:**
-Título: {item.title}
-Fonte: {item.source}
-Resumo: {item.summary or 'Sem resumo disponível'}
-URL: {item.url}
+    Usado pela interface web, onde o formato já vem escolhido pelo usuário.
+    """
+    title = fetch_article_title(url) or url
+    full_text = fetch_article_text(url)
+    source = urlparse(url).netloc or "Link manual"
 
-**Sua missão:**
-Explique O QUE É POSSÍVEL FAZER com essa IA no contexto de empresas reais. Use linguagem de professor:
-simples, com exemplos do cotidiano, sem jargão técnico. Sempre dê exemplos concretos de setores
-diferentes (clínica, loja, restaurante, agência, escritório...).
+    item = NewsItem(
+        title=title,
+        summary=full_text[:800],
+        url=url,
+        source=source,
+        tag="manual",
+        full_text=full_text,
+    )
 
-Responda APENAS com um JSON válido seguindo exatamente este schema:
-
-{{
-  "format": "reels" | "carrossel",
-  "hook": "pergunta ou frase de impacto que faça o dono de negócio parar o scroll (máx 15 palavras)",
-  "business_application": "Explique como donos de negócio podem usar isso HOJE. Tom de professor. Cite 2 exemplos de setores diferentes com frases como 'Uma clínica pode...' e 'Uma loja de roupas consegue...'. Máx 3 frases.",
-
-  // Se format == "reels":
-  "reels_script": {{
-    "duracao_sugerida": "60s | 90s",
-    "hook_visual": "o que mostrar nos primeiros 3 segundos — algo que gere curiosidade imediata",
-    "roteiro": [
-      {{"tempo": "0-5s", "fala": "gancho — pergunta ou afirmação surpreendente", "acao": "o que fazer/mostrar na tela"}},
-      {{"tempo": "5-20s", "fala": "explique O QUE É de forma simples, como um professor. Use analogia do dia a dia.", "acao": "..."}},
-      {{"tempo": "20-45s", "fala": "dê 2 exemplos práticos de negócios reais usando isso. Fale como se estivesse ensinando um aluno.", "acao": "..."}},
-      {{"tempo": "45-60s", "fala": "mostre como começar hoje — passo simples e acessível", "acao": "..."}},
-      {{"tempo": "60-75s", "fala": "CTA: salva, segue, comenta o setor do negócio", "acao": "..."}}
-    ],
-    "legenda_instagram": "caption completa com emojis, linguagem educativa e hashtags relevantes"
-  }},
-
-  // Se format == "carrossel":
-  "carousel_slides": [
-    {{"numero": 1, "tipo": "capa", "titulo": "título que gera curiosidade ou faz uma pergunta ao dono de negócio", "subtitulo": "subtítulo explicando o benefício em linguagem simples", "emoji": "🔥"}},
-    {{"numero": 2, "tipo": "conteudo", "titulo": "O que é isso? (explicação simples)", "corpo": "explique como se fosse para um aluno — sem jargão. Use analogia se possível. Máx 120 chars.", "emoji": "💡"}},
-    {{"numero": 3, "tipo": "conteudo", "titulo": "Exemplo 1: [nome do setor]", "corpo": "Como uma [tipo de empresa] usa isso hoje. Frase curta e concreta. Máx 120 chars.", "emoji": "🏪"}},
-    {{"numero": 4, "tipo": "conteudo", "titulo": "Exemplo 2: [nome do setor]", "corpo": "Como uma [tipo de empresa diferente] usa isso hoje. Frase curta e concreta. Máx 120 chars.", "emoji": "🏥"}},
-    {{"numero": 5, "tipo": "aplicacao", "titulo": "Como começar no seu negócio?", "corpo": "Passo simples e prático para testar isso hoje. Acessível para qualquer empreendedor. Máx 120 chars.", "emoji": "🚀"}},
-    {{"numero": 6, "tipo": "cta", "titulo": "Salva esse carrossel!", "subtitulo": "Siga @rayssacouto.ia para aprender IA aplicada nos negócios", "emoji": "📌"}}
-  ],
-  "legenda_carrossel": "caption educativa com emojis — começe com uma pergunta para o leitor, explique o benefício, CTA para salvar e comentar",
-
-}}"""
-
-    try:
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            system=[
-                {
-                    "type": "text",
-                    "text": SYSTEM_PROMPT,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            messages=[{"role": "user", "content": user_message}],
-        )
-
-        raw = response.content[0].text.strip()
-
-        # Remove markdown code fences se presentes
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        raw = raw.strip().rstrip("```").strip()
-
-        data = json.loads(raw)
-        fmt: ContentType = data.get("format", "carrossel")
-
-        result = GeneratedContent(
-            news=item,
-            format=fmt,
-            hook=data.get("hook", ""),
-            business_application=data.get("business_application", ""),
-        )
-
-        if fmt == "reels":
-            script = data.get("reels_script", {})
-            result.reels_script = _format_reels_script(script, item.title)
-        elif fmt == "carrossel":
-            result.carousel_slides = data.get("carousel_slides", [])
-            result.static_caption = data.get("legenda_carrossel", "")
-        return result
-
-    except json.JSONDecodeError as e:
-        print(f"[classifier] JSON inválido para '{item.title}': {e}")
-        return None
-    except anthropic.APIError as e:
-        print(f"[classifier] Erro de API para '{item.title}': {e}")
-        return None
-
-
-def _format_reels_script(script: dict, title: str) -> str:
-    lines = [
-        f"🎬 ROTEIRO REELS — {title}",
-        f"⏱ Duração sugerida: {script.get('duracao_sugerida', '60-90s')}",
-        f"📽 Hook visual (primeiros 3s): {script.get('hook_visual', '')}",
-        "",
-        "--- ROTEIRO ---",
-    ]
-    for step in script.get("roteiro", []):
-        lines.append(f"\n[{step.get('tempo', '')}]")
-        lines.append(f"🗣 FALA: {step.get('fala', '')}")
-        lines.append(f"📹 AÇÃO: {step.get('acao', '')}")
-
-    caption = script.get("legenda_instagram", "")
-    if caption:
-        lines += ["", "--- LEGENDA INSTAGRAM ---", caption]
-
-    return "\n".join(lines)
+    if formato == "roteiro":
+        return _generate_roteiro(item, client)
+    return _generate_carrossel(item, client)

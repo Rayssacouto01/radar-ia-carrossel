@@ -1,5 +1,6 @@
 """Busca novidades de IA nas fontes configuradas via RSS e scraping."""
 
+import os
 import feedparser
 import requests
 from bs4 import BeautifulSoup
@@ -92,6 +93,7 @@ class NewsItem:
     published: Optional[datetime] = None
     full_text: str = ""
     extra_tags: list[str] = field(default_factory=list)
+    image_path: str = ""
 
 
 def _parse_date(entry) -> Optional[datetime]:
@@ -220,6 +222,64 @@ def fetch_article_text(url: str, max_chars: int = 3000) -> str:
             tag.decompose()
         return soup.get_text(" ", strip=True)[:max_chars]
     except Exception:
+        return ""
+
+
+def fetch_article_title(url: str) -> str:
+    """Busca o <title> de uma página, para uso quando não há dado de RSS."""
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        soup = BeautifulSoup(resp.text, "lxml")
+        if soup.title and soup.title.string:
+            return soup.title.string.strip()
+    except Exception:
+        pass
+    return ""
+
+
+def fetch_article_image(url: str) -> str:
+    """Busca a imagem de capa (og:image / twitter:image) de um artigo.
+
+    Baixa o arquivo para uma pasta temporária e retorna o caminho local,
+    ou string vazia se não encontrar/baixar a imagem.
+    """
+    import tempfile
+    from urllib.parse import urljoin
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "lxml")
+
+        image_url = ""
+        for prop in ("og:image", "twitter:image", "twitter:image:src"):
+            tag = soup.find("meta", property=prop) or soup.find("meta", attrs={"name": prop})
+            if tag and tag.get("content"):
+                image_url = tag["content"].strip()
+                break
+
+        if not image_url:
+            return ""
+
+        image_url = urljoin(url, image_url)
+
+        img_resp = requests.get(image_url, headers=HEADERS, timeout=15)
+        img_resp.raise_for_status()
+
+        content_type = img_resp.headers.get("Content-Type", "")
+        ext = ".jpg"
+        if "png" in content_type:
+            ext = ".png"
+        elif "webp" in content_type:
+            ext = ".webp"
+
+        fd, path = tempfile.mkstemp(suffix=ext, prefix="article_image_")
+        with os.fdopen(fd, "wb") as f:
+            f.write(img_resp.content)
+
+        return path
+    except Exception as e:
+        print(f"[scraper] Não foi possível baixar imagem do artigo: {e}")
         return ""
 
 

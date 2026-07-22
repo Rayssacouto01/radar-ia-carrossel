@@ -1,4 +1,4 @@
-"""Gera slides de carrossel usando o template real da Rayssa como base."""
+"""Gera carrosséis estilo tweet (X/Twitter) para Instagram, formato fixo @rayssacouto.ia."""
 
 import re
 from pathlib import Path
@@ -7,365 +7,212 @@ from .classifier import GeneratedContent
 
 
 def _clean_text(text: str) -> str:
-    # Remove supplementary plane (emoji, symbols fora do BMP)
+    # Remove emoji / símbolos fora do plano básico (BMP)
     text = re.sub(r'[\U00010000-\U0010FFFF]', '', text, flags=re.UNICODE)
-    # Substitui pontuação especial por equivalentes ASCII
     text = (text
-        .replace('—', '-').replace('–', '-')   # em dash, en dash
-        .replace('‒', '-').replace('‑', '-')   # figure/non-breaking hyphen
-        .replace('“', '"').replace('”', '"')   # aspas curvas duplas
-        .replace('‘', "'").replace('’', "'")   # aspas curvas simples
-        .replace('…', '...').replace(' ', ' ') # reticências, espaço fixo
-        .replace('•', '-').replace('·', '-')   # bullet, ponto médio
-        .replace('→', '->').replace('←', '<-') # setas
+        .replace('—', ',').replace('–', ',').replace('‒', ',').replace('‑', ',')  # travessões -> vírgula
+        .replace('“', '"').replace('”', '"')
+        .replace('‘', "'").replace('’', "'")
+        .replace('…', '...').replace(' ', ' ')
+        .replace('•', '-').replace('·', '-')
     )
-    # Remove símbolos BMP que Inter não tem glyph (Dingbats, Misc Symbols, etc.)
     text = re.sub(r'[⌀-➿⬀-⯿︀-️]', '', text)
     return text.strip()
 
 
-# mantém alias para compatibilidade interna
-_strip_emoji = _clean_text
+# ── Identidade fixa do perfil ───────────────────────────────────────────────
+DISPLAY_NAME = "Rayssa Couto"
+HANDLE = "@rayssacouto.ia"
 
-# ── Caminhos ───────────────────────────────────────────────────────────────
-ASSETS_DIR    = Path(__file__).parent.parent / "assets"
-TEMPLATE_PATH = ASSETS_DIR / "slide_template.png"
-FONT_REGULAR  = ASSETS_DIR / "fonts" / "Inter-Regular.ttf"
-FONT_BOLD     = ASSETS_DIR / "fonts" / "Inter-Bold.ttf"
+ASSETS_DIR = Path(__file__).parent.parent / "assets"
+AVATAR_PATH = ASSETS_DIR / "profile" / "avatar.jpg"
+FONT_REGULAR_FALLBACK = ASSETS_DIR / "fonts" / "Inter-Regular.ttf"
+FONT_BOLD_FALLBACK = ASSETS_DIR / "fonts" / "Inter-Bold.ttf"
 
-# ── Resolução de saída (2× para maior qualidade) ───────────────────────────
+# Ordem de preferência de fonte (Regular, Bold) — Liberation/DejaVu instalados via apt na VPS,
+# com fallback pra Inter (empacotada) durante desenvolvimento local.
+FONT_CANDIDATES = [
+    (
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    ),
+    (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ),
+    (
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ),
+]
+
+# ── Estilo B: fundo preto, sem destaque de cor ──────────────────────────────
+BG_COLOR = (0, 0, 0)
+TEXT_COLOR = (231, 233, 234)     # #E7E9EA
+HANDLE_COLOR = (113, 118, 123)   # #71767B
+VERIFIED_COLOR = (29, 155, 240)  # #1D9BF0
+
+# ── Resolução (2x internamente, exporta em 1080x1350) ──────────────────────
 SCALE = 2
+CANVAS_W_LOGICAL, CANVAS_H_LOGICAL = 1080, 1350
+W, H = CANVAS_W_LOGICAL * SCALE, CANVAS_H_LOGICAL * SCALE
 
-# ── Layout base 1080×1440 escalado ─────────────────────────────────────────
-W, H = 1080 * SCALE, 1440 * SCALE
+MARGIN_X = 80 * SCALE
+CONTENT_W = W - 2 * MARGIN_X
 
-CONTENT_TOP    = 420  * SCALE
-CONTENT_BOTTOM = 1210 * SCALE
-CONTENT_LEFT   = 80   * SCALE
-CONTENT_RIGHT  = 1000 * SCALE
-CONTENT_W      = CONTENT_RIGHT - CONTENT_LEFT
+AVATAR_SIZE = 100 * SCALE
+NAME_SIZE = 36
+BADGE_SIZE = 32 * SCALE
+HANDLE_SIZE = 28
+TEXT_SIZE = 44
+LINE_HEIGHT = 60 * SCALE
+HEADER_TEXT_GAP = 32 * SCALE
 
-DOT_Y        = 1275 * SCALE
-DOT_CX       = 540  * SCALE
-DOT_SPACING  = 40   * SCALE
-DOT_R_ACTIVE = 11   * SCALE
-DOT_R_IDLE   = 7    * SCALE
-DOT_R_LAST   = 5    * SCALE
-COLOR_ACTIVE = (0, 152, 253)
-COLOR_IDLE   = (219, 223, 228)
-
-TEXT_DARK   = (45,  45,  50)
-TEXT_GRAY   = (110, 110, 120)
-TEXT_ACCENT = (0,   152, 253)
+IMAGE_MAX_W = 920 * SCALE
+IMAGE_MAX_H = 600 * SCALE
+IMAGE_RADIUS = 24 * SCALE
 
 
-# ── Fontes ─────────────────────────────────────────────────────────────────
-def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
-    inter = FONT_BOLD if bold else FONT_REGULAR
-    if inter.exists():
-        return ImageFont.truetype(str(inter), size * SCALE)
-    fallbacks = (
-        ["/System/Library/Fonts/HelveticaNeue.ttc", "/Library/Fonts/Arial Bold.ttf"]
-        if bold
-        else ["/System/Library/Fonts/Helvetica.ttc", "/Library/Fonts/Arial.ttf"]
-    )
-    for path in fallbacks:
+def _font(size_logical: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+    for regular_path, bold_path in FONT_CANDIDATES:
+        path = bold_path if bold else regular_path
         if Path(path).exists():
             try:
-                return ImageFont.truetype(path, size * SCALE)
+                return ImageFont.truetype(path, size_logical * SCALE)
             except Exception:
                 pass
+    fallback = FONT_BOLD_FALLBACK if bold else FONT_REGULAR_FALLBACK
+    if fallback.exists():
+        return ImageFont.truetype(str(fallback), size_logical * SCALE)
     return ImageFont.load_default()
 
 
-# ── Helpers ────────────────────────────────────────────────────────────────
-def _wrap(text: str, font, max_w: int, draw: ImageDraw.Draw) -> list[str]:
-    words = text.split()
-    lines, cur = [], ""
-    for word in words:
-        test = f"{cur} {word}".strip()
-        if draw.textbbox((0, 0), test, font=font)[2] <= max_w:
-            cur = test
-        else:
-            if cur:
-                lines.append(cur)
-            cur = word
-    if cur:
-        lines.append(cur)
-    return lines
+def _wrap_text(text: str, font, max_w: int, draw: ImageDraw.Draw) -> list[str]:
+    lines = []
+    for paragraph in text.split("\n"):
+        words = paragraph.split()
+        cur = ""
+        for word in words:
+            test = f"{cur} {word}".strip()
+            if draw.textlength(test, font=font) <= max_w:
+                cur = test
+            else:
+                if cur:
+                    lines.append(cur)
+                cur = word
+        if cur:
+            lines.append(cur)
+    return lines or [""]
 
 
-def _draw_text_block(
-    draw: ImageDraw.Draw,
-    text: str,
-    x: int,
-    y: int,
-    font,
-    color,
-    max_w: int,
-    line_gap: int = 10,
-    align: str = "left",
-) -> int:
-    """Desenha texto com quebra de linha. Retorna o y final."""
-    lines = _wrap(_clean_text(text), font, max_w, draw)
-    for line in lines:
-        bbox = draw.textbbox((0, 0), line, font=font)
-        lw = bbox[2] - bbox[0]
-        if align == "center":
-            lx = x + (max_w - lw) // 2
-        else:
-            lx = x
-        draw.text((lx, y), line, font=font, fill=color)
-        y += bbox[3] - bbox[1] + line_gap
-    return y
+def _draw_verified_badge(draw: ImageDraw.Draw, x: int, y: int, size: int, color):
+    draw.ellipse((x, y, x + size, y + size), fill=color)
+    width = max(2, size // 10)
+    draw.line([(x + size * 0.25, y + size * 0.52), (x + size * 0.42, y + size * 0.70)], fill="white", width=width)
+    draw.line([(x + size * 0.42, y + size * 0.70), (x + size * 0.78, y + size * 0.30)], fill="white", width=width)
 
 
-# ── Dots ───────────────────────────────────────────────────────────────────
-def _draw_dots(draw: ImageDraw.Draw, slide_num: int, total: int):
-    # Apaga toda a faixa horizontal dos dots usando valores escalados
-    margin = DOT_R_ACTIVE * 3
-    half_span = int((total - 1) * DOT_SPACING / 2) + DOT_R_ACTIVE + 10
-    draw.rectangle(
-        [DOT_CX - half_span, DOT_Y - margin, DOT_CX + half_span, DOT_Y + margin],
-        fill=(255, 255, 255),
-    )
-
-    offset = -(total - 1) * DOT_SPACING / 2
-    for i in range(total):
-        cx = int(DOT_CX + offset + i * DOT_SPACING)
-        active = i == slide_num - 1
-        last   = i == total - 1 and not active
-        r = DOT_R_ACTIVE if active else (DOT_R_LAST if last else DOT_R_IDLE)
-        c = COLOR_ACTIVE if active else COLOR_IDLE
-        draw.ellipse([cx - r, DOT_Y - r, cx + r, DOT_Y + r], fill=c)
+def _load_avatar(size: int):
+    if AVATAR_PATH.exists():
+        avatar = Image.open(AVATAR_PATH).convert("RGB").resize((size, size), Image.LANCZOS)
+    else:
+        avatar = Image.new("RGB", (size, size), (45, 45, 50))
+        draw = ImageDraw.Draw(avatar)
+        f = _font(48, bold=True)
+        draw.text((size / 2, size / 2), DISPLAY_NAME[:1], font=f, fill=(255, 255, 255), anchor="mm")
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, size, size), fill=255)
+    return avatar, mask
 
 
-# ── Conteúdo por tipo de slide ─────────────────────────────────────────────
-def _render_capa(draw: ImageDraw.Draw, slide: dict):
-    emoji  = _strip_emoji(slide.get("emoji", ""))
-    titulo = slide.get("titulo", "")
-    sub    = slide.get("subtitulo", "")
-
-    total_h = CONTENT_BOTTOM - CONTENT_TOP
-    cy = CONTENT_TOP + total_h // 4
-
-    if emoji:
-        fe = _font(96)
-        draw.text((CONTENT_LEFT + CONTENT_W // 2, cy), emoji, font=fe,
-                  fill=COLOR_ACTIVE, anchor="mm")
-        cy += 120
-
-    ft = _font(64, bold=True)
-    cy = _draw_text_block(draw, titulo, CONTENT_LEFT, cy, ft, TEXT_DARK,
-                          CONTENT_W, line_gap=14, align="center")
-    cy += 20
-
-    if sub:
-        fs = _font(40)
-        _draw_text_block(draw, sub, CONTENT_LEFT, cy, fs, TEXT_GRAY,
-                         CONTENT_W, align="center")
+def _prepare_rounded_image(path: str):
+    try:
+        img = Image.open(path).convert("RGB")
+    except Exception as e:
+        print(f"[carousel] Não foi possível abrir imagem do artigo: {e}")
+        return None
+    img.thumbnail((IMAGE_MAX_W, IMAGE_MAX_H), Image.LANCZOS)
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle([(0, 0), img.size], radius=IMAGE_RADIUS, fill=255)
+    rgba = img.convert("RGBA")
+    rgba.putalpha(mask)
+    return rgba
 
 
-def _render_content(draw: ImageDraw.Draw, slide: dict):
-    emoji  = _strip_emoji(slide.get("emoji", ""))
-    titulo = slide.get("titulo", "")
-    corpo  = slide.get("corpo", "")
-
-    y = CONTENT_TOP + 40
-
-    if emoji:
-        fe = _font(72)
-        draw.text((CONTENT_LEFT, y), emoji, font=fe, fill=COLOR_ACTIVE)
-        y += 95
-
-    # Linha decorativa
-    draw.rectangle([CONTENT_LEFT, y, CONTENT_LEFT + 60, y + 6],
-                   fill=COLOR_ACTIVE)
-    y += 30
-
-    ft = _font(54, bold=True)
-    y = _draw_text_block(draw, titulo, CONTENT_LEFT, y, ft, TEXT_DARK,
-                         CONTENT_W, line_gap=12)
-    y += 30
-
-    if corpo:
-        fb = _font(40)
-        _draw_text_block(draw, corpo, CONTENT_LEFT, y, fb, TEXT_GRAY,
-                         CONTENT_W, line_gap=14)
-
-
-def _render_aplicacao(draw: ImageDraw.Draw, slide: dict):
-    emoji  = _strip_emoji(slide.get("emoji", ""))
-    titulo = slide.get("titulo", "Como usar no seu negócio")
-    corpo  = slide.get("corpo", "")
-
-    y = CONTENT_TOP + 40
-
-    if emoji:
-        fe = _font(72)
-        draw.text((CONTENT_LEFT, y), emoji, font=fe, fill=COLOR_ACTIVE)
-        y += 100
-
-    # Label destaque
-    fl = _font(26)
-    draw.text((CONTENT_LEFT, y), "APLICAÇÃO PRÁTICA", font=fl,
-              fill=COLOR_ACTIVE)
-    y += 42
-
-    ft = _font(50, bold=True)
-    y = _draw_text_block(draw, titulo, CONTENT_LEFT, y, ft, TEXT_DARK,
-                         CONTENT_W, line_gap=12)
-    y += 24
-
-    draw.rectangle([CONTENT_LEFT, y, CONTENT_RIGHT - 20, y + 4],
-                   fill=COLOR_IDLE)
-    y += 28
-
-    if corpo:
-        fb = _font(40)
-        _draw_text_block(draw, corpo, CONTENT_LEFT, y, fb, TEXT_GRAY,
-                         CONTENT_W, line_gap=14)
-
-
-def _render_cta(draw: ImageDraw.Draw, slide: dict):
-    emoji  = _strip_emoji(slide.get("emoji", ""))
-    titulo = slide.get("titulo", "Salva esse carrossel!")
-    sub    = slide.get("subtitulo", "")
-
-    total_h = CONTENT_BOTTOM - CONTENT_TOP
-    cy = CONTENT_TOP + total_h // 5
-
-    if emoji:
-        fe = _font(110)
-        draw.text((CONTENT_LEFT + CONTENT_W // 2, cy), emoji, font=fe,
-                  fill=TEXT_DARK, anchor="mm")
-        cy += 140
-
-    ft = _font(60, bold=True)
-    cy = _draw_text_block(draw, titulo, CONTENT_LEFT, cy, ft, TEXT_DARK,
-                          CONTENT_W, line_gap=14, align="center")
-    cy += 20
-
-    if sub:
-        fs = _font(38)
-        _draw_text_block(draw, sub, CONTENT_LEFT, cy, fs, COLOR_ACTIVE,
-                         CONTENT_W, align="center")
-
-
-RENDERERS = {
-    "capa":      _render_capa,
-    "cta":       _render_cta,
-    "aplicacao": _render_aplicacao,
-}
-
-
-# ── Capa única (reels / post estático) ────────────────────────────────────
-FORMAT_LABEL = {
-    "reels":        "REELS",
-    "post_estatico": "POST ESTATICO",
-}
-
-
-def generate_cover(content: GeneratedContent, output_dir: str) -> list[str]:
-    """Gera um slide de capa único para reels e post_estatico."""
-    if not TEMPLATE_PATH.exists():
-        print(f"[carousel] Template não encontrado: {TEMPLATE_PATH}")
-        return []
-
-    template = Image.open(TEMPLATE_PATH).convert("RGB").resize((W, H), Image.LANCZOS)
-    img = template.copy()
+def _render_slide(text: str, avatar_img: Image.Image, avatar_mask: Image.Image, image_below=None) -> Image.Image:
+    img = Image.new("RGB", (W, H), BG_COLOR)
     draw = ImageDraw.Draw(img)
 
-    draw.rectangle(
-        [CONTENT_LEFT - 10, CONTENT_TOP, CONTENT_RIGHT + 10, CONTENT_BOTTOM],
-        fill=(255, 255, 255),
-    )
+    font_name = _font(NAME_SIZE, bold=True)
+    font_handle = _font(HANDLE_SIZE)
+    font_text = _font(TEXT_SIZE)
 
-    y = CONTENT_TOP + 50
+    wrapped_lines = _wrap_text(_clean_text(text), font_text, CONTENT_W, draw)
+    text_height = len(wrapped_lines) * LINE_HEIGHT
 
-    # Label do formato
-    label = FORMAT_LABEL.get(content.format, content.format.upper())
-    fl = _font(28)
-    draw.text((CONTENT_LEFT, y), label, font=fl, fill=COLOR_ACTIVE)
-    y += 52
+    header_height = AVATAR_SIZE
+    image_block_height = (image_below.height + HEADER_TEXT_GAP) if image_below is not None else 0
 
-    # Linha decorativa
-    draw.rectangle([CONTENT_LEFT, y, CONTENT_LEFT + 60, y + 6], fill=COLOR_ACTIVE)
-    y += 30
+    total_block_height = header_height + HEADER_TEXT_GAP + text_height + image_block_height
+    start_y = (H - total_block_height) // 2
 
-    # Gancho como título principal
-    ft = _font(54, bold=True)
-    y = _draw_text_block(draw, content.hook, CONTENT_LEFT, y, ft, TEXT_DARK,
-                         CONTENT_W, line_gap=12)
-    y += 30
+    # Avatar
+    img.paste(avatar_img, (MARGIN_X, start_y), avatar_mask)
 
-    # Fonte da notícia como subtítulo
-    fs = _font(36)
-    _draw_text_block(draw, content.news.source, CONTENT_LEFT, y, fs, TEXT_GRAY, CONTENT_W)
+    # Nome + selo verificado
+    name_x = MARGIN_X + AVATAR_SIZE + 20 * SCALE
+    draw.text((name_x, start_y + 10 * SCALE), DISPLAY_NAME, font=font_name, fill=TEXT_COLOR)
+    name_w = draw.textlength(DISPLAY_NAME, font=font_name)
+    _draw_verified_badge(draw, int(name_x + name_w + 10 * SCALE), start_y + 18 * SCALE, BADGE_SIZE, VERIFIED_COLOR)
 
-    # Remove área dos dots (slide único, sem navegação)
-    draw.rectangle([200, DOT_Y - 25, 880, DOT_Y + 25], fill=(255, 255, 255))
+    # Handle
+    draw.text((name_x, start_y + 50 * SCALE), HANDLE, font=font_handle, fill=HANDLE_COLOR)
 
-    safe = "".join(
-        c if c.isalnum() or c in " -_" else "_"
-        for c in content.news.title[:40]
-    ).strip().replace(" ", "_")
+    # Corpo do texto
+    text_y = start_y + header_height + HEADER_TEXT_GAP
+    for line in wrapped_lines:
+        draw.text((MARGIN_X, text_y), line, font=font_text, fill=TEXT_COLOR)
+        text_y += LINE_HEIGHT
 
-    out_dir = Path(output_dir) / safe
-    out_dir.mkdir(parents=True, exist_ok=True)
+    # Imagem de capa (só no slide 1, quando existir)
+    if image_below is not None:
+        img_y = text_y + HEADER_TEXT_GAP
+        img_x = (W - image_below.width) // 2
+        img.paste(image_below, (img_x, img_y), image_below)
 
-    path = out_dir / "capa.png"
-    img.save(str(path), "PNG", optimize=True)
-    print(f"[carousel] Capa gerada: {path.name}")
-    return [str(path)]
+    return img
 
 
-# ── Gerador principal ──────────────────────────────────────────────────────
+def _safe_name(title: str) -> str:
+    safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in title[:40])
+    return safe.strip().replace(" ", "_")
+
+
 def generate_carousel(content: GeneratedContent, output_dir: str) -> list[str]:
-    """Gera PNGs usando o template da Rayssa como base. Retorna lista de caminhos."""
-    if content.format != "carrossel":
+    """Renderiza os slides do carrossel (estilo tweet) como PNGs. Retorna a lista de caminhos."""
+    if content.format != "carrossel" or not content.carousel_slides:
         return []
 
-    if not TEMPLATE_PATH.exists():
-        print(f"[carousel] Template não encontrado: {TEMPLATE_PATH}")
-        return []
+    avatar_img, avatar_mask = _load_avatar(AVATAR_SIZE)
 
-    template = Image.open(TEMPLATE_PATH).convert("RGB").resize((W, H), Image.LANCZOS)
-    slides = content.carousel_slides
-    total = len(slides)
+    hook_image = None
+    if content.news.image_path and Path(content.news.image_path).exists():
+        hook_image = _prepare_rounded_image(content.news.image_path)
 
-    safe = "".join(
-        c if c.isalnum() or c in " -_" else "_"
-        for c in content.news.title[:40]
-    ).strip().replace(" ", "_")
-
+    safe = _safe_name(content.news.title)
     out_dir = Path(output_dir) / safe
     out_dir.mkdir(parents=True, exist_ok=True)
 
     paths = []
-    for slide in slides:
-        num  = slide.get("numero", len(paths) + 1)
-        tipo = slide.get("tipo", "conteudo")
+    total = len(content.carousel_slides)
+    for i, text in enumerate(content.carousel_slides, start=1):
+        image_for_slide = hook_image if i == 1 else None
+        img = _render_slide(text, avatar_img, avatar_mask, image_below=image_for_slide)
+        img = img.resize((CANVAS_W_LOGICAL, CANVAS_H_LOGICAL), Image.LANCZOS)
 
-        img  = template.copy()
-        draw = ImageDraw.Draw(img)
-
-        # Limpa área de conteúdo
-        draw.rectangle(
-            [CONTENT_LEFT - 10, CONTENT_TOP, CONTENT_RIGHT + 10, CONTENT_BOTTOM],
-            fill=(255, 255, 255),
-        )
-
-        # Renderiza conteúdo do slide
-        renderer = RENDERERS.get(tipo, _render_content)
-        renderer(draw, slide)
-
-        # Atualiza dots
-        _draw_dots(draw, num, total)
-
-        path = out_dir / f"slide_{num:02d}.png"
+        path = out_dir / f"slide_{i:02d}.png"
         img.save(str(path), "PNG", optimize=True)
         paths.append(str(path))
-        print(f"[carousel] Slide {num}/{total}: {path.name}")
+        print(f"[carousel] Slide {i}/{total}: {path.name}")
 
     return paths

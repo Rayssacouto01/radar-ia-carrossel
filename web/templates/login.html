@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Radar IA — Login</title>
+  <style>
+    body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#0A0A0A; font-family:Arial,sans-serif; }
+    form { background:#161616; padding:32px; border-radius:12px; width:280px; box-shadow:0 4px 20px rgba(0,0,0,0.4); }
+    h1 { color:#fff; font-size:18px; margin:0 0 20px; }
+    input { width:100%; padding:10px 12px; border-radius:8px; border:1px solid #333; background:#0A0A0A; color:#fff; font-size:14px; box-sizing:border-box; }
+    button { width:100%; margin-top:14px; padding:10px 12px; border:none; border-radius:8px; background:#FF5722; color:#fff; font-weight:700; font-size:14px; cursor:pointer; }
+    button:hover { background:#e64a19; }
+    .error { color:#FC8181; font-size:13px; margin-top:12px; }
+  </style>
+</head>
+<body>
+  <form method="post">
+    <h1>🤖 Radar IA</h1>
+    <input type="password" name="password" placeholder="Senha" autofocus required>
+    <button type="submit">Entrar</button>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  </form>
+</body>
+</html>
