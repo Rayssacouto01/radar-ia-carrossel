@@ -31,6 +31,11 @@
     .slides figcaption { font-size:12px; color:#71767B; margin-top:6px; }
     .slides a { font-size:11px; color:#FF5722; text-decoration:none; }
     .loading { color:#71767B; font-size:14px; }
+    .edit-last { margin-top:18px; padding-top:18px; border-top:1px solid #262626; }
+    .edit-last textarea { width:100%; min-height:70px; padding:10px 12px; border-radius:8px; border:1px solid #333; background:#0A0A0A; color:#fff; font-size:14px; font-family:inherit; resize:vertical; }
+    .edit-last button { margin-top:8px; padding:10px 16px; border:none; border-radius:8px; background:#333; color:#fff; font-weight:700; font-size:13px; cursor:pointer; }
+    .edit-last button:hover:not(:disabled) { background:#444; }
+    .edit-last button:disabled { opacity:0.5; cursor:not-allowed; }
     .news-meta { font-size:12px; color:#71767B; margin-bottom:16px; }
     .news-meta a { color:#71767B; }
 
@@ -211,16 +216,49 @@
             const media = s.is_video
               ? `<video src="${s.data_uri}" controls></video>`
               : `<img src="${s.data_uri}" alt="Slide ${s.index}">`;
-            html += `<figure>
+            html += `<figure id="slide-fig-${s.index}">
               ${media}
               <figcaption>${s.is_video ? 'Vídeo' : 'Slide'} ${s.index}</figcaption>
               <a href="${s.data_uri}" download="slide_${String(s.index).padStart(2,'0')}.${ext}">Baixar</a>
             </figure>`;
           });
           html += '</div>';
+
+          const lastSlide = data.slides[data.slides.length - 1];
+          html += `<div class="edit-last">
+            <label>Editar último slide (CTA)</label>
+            <textarea id="last-slide-text">${lastSlide.text}</textarea>
+            <button type="button" id="update-last-btn" data-index="${lastSlide.index}">Atualizar último slide</button>
+          </div>`;
         }
 
         resultado.innerHTML = html;
+
+        const updateBtn = document.getElementById('update-last-btn');
+        if (updateBtn) {
+          updateBtn.addEventListener('click', async () => {
+            const text = document.getElementById('last-slide-text').value.trim();
+            if (!text) return;
+            updateBtn.disabled = true;
+            updateBtn.textContent = 'Atualizando...';
+            try {
+              const fd = new FormData();
+              fd.append('text', text);
+              const r = await fetch('/render-slide', { method: 'POST', body: fd });
+              const d = await r.json();
+              if (!d.ok) { alert(d.error || 'Erro ao atualizar slide.'); return; }
+              const idx = updateBtn.dataset.index;
+              const fig = document.getElementById(`slide-fig-${idx}`);
+              fig.querySelector('img').src = d.data_uri;
+              fig.querySelector('a').href = d.data_uri;
+            } catch (e) {
+              alert('Erro de conexão. Tenta de novo.');
+            } finally {
+              updateBtn.disabled = false;
+              updateBtn.textContent = 'Atualizar último slide';
+            }
+          });
+        }
       } catch (e) {
         resultado.innerHTML = '<p class="erro">Erro de conexão. Tenta de novo.</p>';
       } finally {

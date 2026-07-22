@@ -18,7 +18,7 @@ load_dotenv()
 
 import anthropic
 
-from src.carousel_generator import generate_carousel
+from src.carousel_generator import generate_carousel, render_slide_png
 from src.classifier import generate_manual
 from src.scraper import fetch_article_image
 from src.video_downloader import download_video
@@ -143,12 +143,17 @@ def generate():
 
         paths = generate_carousel(content, tmp_dir, image_map=image_map, video_path=video_path)
         slides = []
+        text_idx = 0
         for i, path in enumerate(paths, start=1):
             with open(path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
             is_video = path.lower().endswith(".mp4")
             mime = "video/mp4" if is_video else "image/png"
-            slides.append({"index": i, "data_uri": f"data:{mime};base64,{b64}", "is_video": is_video})
+            entry = {"index": i, "data_uri": f"data:{mime};base64,{b64}", "is_video": is_video}
+            if not is_video:
+                entry["text"] = content.carousel_slides[text_idx]
+                text_idx += 1
+            slides.append(entry)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         shutil.rmtree(uploads_dir, ignore_errors=True)
@@ -156,6 +161,18 @@ def generate():
             shutil.rmtree(downloaded_video_dir, ignore_errors=True)
 
     return jsonify(ok=True, formato="carrossel", news=news, slides=slides)
+
+
+@app.route("/render-slide", methods=["POST"])
+@login_required
+def render_slide():
+    text = (request.form.get("text") or "").strip()
+    if not text:
+        return jsonify(ok=False, error="Digite o texto do slide."), 400
+
+    png_bytes = render_slide_png(text)
+    b64 = base64.b64encode(png_bytes).decode()
+    return jsonify(ok=True, data_uri=f"data:image/png;base64,{b64}", text=text)
 
 
 if __name__ == "__main__":

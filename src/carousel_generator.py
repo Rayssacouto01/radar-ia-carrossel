@@ -1,5 +1,6 @@
 """Gera carrosséis estilo tweet (X/Twitter) para Instagram, formato fixo @rayssacouto.ia."""
 
+import io
 import re
 import shutil
 from pathlib import Path
@@ -187,6 +188,20 @@ def _render_slide(text: str, avatar_img: Image.Image, avatar_mask: Image.Image, 
 def _safe_name(title: str) -> str:
     safe = "".join(c if c.isalnum() or c in " -_" else "_" for c in title[:40])
     return safe.strip().replace(" ", "_")
+
+
+def render_slide_png(text: str) -> bytes:
+    """Renderiza um único slide de texto (mesma identidade visual) e retorna os bytes do PNG.
+
+    Usado pra regenerar/editar um slide isolado (ex: o CTA final) sem refazer o carrossel inteiro.
+    """
+    avatar_img, avatar_mask = _load_avatar(AVATAR_SIZE)
+    img = _render_slide(text, avatar_img, avatar_mask)
+    img = img.resize((CANVAS_W_LOGICAL, CANVAS_H_LOGICAL), Image.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
 
 
 def generate_carousel(
