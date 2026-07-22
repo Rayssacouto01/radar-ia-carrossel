@@ -55,7 +55,14 @@ CARROSSEL_SYSTEM_PROMPT = """Você gera o texto de carrosséis para Instagram no
 Regras de copy (invioláveis):
 - Português do Brasil, coloquial, direto. Nunca tradução literal do inglês.
 - Frases curtas: no máximo 12 palavras por frase.
-- NUNCA use travessão (— – ─). Use vírgula, ponto final ou quebra de linha no lugar.
+- NUNCA use travessão (— – ─). No lugar dele, escolha o que soar mais natural e gramaticalmente
+  correto em português: vírgula, dois-pontos (quando for introduzir uma explicação ou consequência,
+  ex: "Não adianta ter a ferramenta mais poderosa do mundo: se ninguém sabe usar, de nada adianta."),
+  ponto final, ou reescreva como duas frases completas.
+- NUNCA quebre uma frase no meio com uma quebra de linha. Cada quebra de linha dentro do texto de
+  um slide só pode acontecer no fim de uma frase completa e pontuada (terminada em . ou :). Se o
+  texto for uma frase só, deixe ela inteira, sem quebra de linha no meio — a quebra visual pro
+  tamanho do slide é feita automaticamente por quem renderiza, você não precisa (nem deve) quebrar.
 - Sem emoji no corpo do texto.
 - Sem hashtag no meio do texto.
 - Tom declarativo e opinativo. Não é tutorial passo a passo, é pensamento curto.
