@@ -1,5 +1,6 @@
 """Baixa vídeo de um link (YouTube e afins) para uso como item do carrossel."""
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -7,16 +8,23 @@ import yt_dlp
 
 MAX_DURATION_SECONDS = 180  # 3 minutos — carrossel usa vídeo curto, evita baixar algo enorme por engano
 
+# Caminho opcional de um cookies.txt (formato Netscape) exportado de um navegador logado no
+# YouTube. Alguns servidores/VPS levam bloqueio anti-bot do YouTube sem isso — ver
+# https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp
+YOUTUBE_COOKIES_FILE = os.getenv("YOUTUBE_COOKIES_FILE", "")
+
+
+def _base_opts() -> dict:
+    opts = {"extractor_args": {"youtube": {"player_client": ["android", "web"]}}}
+    if YOUTUBE_COOKIES_FILE and Path(YOUTUBE_COOKIES_FILE).exists():
+        opts["cookiefile"] = YOUTUBE_COOKIES_FILE
+    return opts
+
 
 def download_video(url: str) -> tuple[str, str]:
     """Baixa o vídeo do link. Retorna (caminho_local, erro). Em sucesso, erro == ""."""
     try:
-        probe_opts = {
-            "quiet": True,
-            "skip_download": True,
-            "noplaylist": True,
-            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
-        }
+        probe_opts = {"quiet": True, "skip_download": True, "noplaylist": True, **_base_opts()}
         with yt_dlp.YoutubeDL(probe_opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
@@ -33,7 +41,7 @@ def download_video(url: str) -> tuple[str, str]:
             "format": "best[ext=mp4][height<=720]/bestvideo[height<=720]+bestaudio/best[height<=720]/best",
             "merge_output_format": "mp4",
             "outtmpl": outtmpl,
-            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+            **_base_opts(),
         }
         with yt_dlp.YoutubeDL(download_opts) as ydl:
             ydl.download([url])
